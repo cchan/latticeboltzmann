@@ -3,6 +3,10 @@ Lattice Boltzmann Method
 
 I promise I'll write more stuff here about what I learned about fluid dynamics simulation when it's not 3AM.
 
+Here's a nice screenshot (top is density, bottom is direction field)
+
+![screenshot.jpg](screenshot.jpg)
+
 References:
 - http://physics.weber.edu/schroeder/javacourse/LatticeBoltzmann.pdf (main one)
 - https://pdfs.semanticscholar.org/847f/819a4ea14bd789aca8bc88e85e906cfc657c.pdf
