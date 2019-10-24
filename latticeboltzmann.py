@@ -3,6 +3,8 @@ import numpy as np
 import sys
 import time
 import math
+import cv2
+
 
 w = np.array([1.0/36, 1.0/9, 1.0/36,
               1.0/9, 4.0/9, 1.0/9,
@@ -12,11 +14,18 @@ e = np.array([[-1,-1],[0,-1],[1,-1],
               [-1, 1],[0, 1],[1, 1]])
 e_f = np.array(e, dtype=np.float32)
 
-N = 45 # rows
-M = 75 # columns
+N = 100 # rows
+M = 200 # columns
 OMEGA = 0.2 # affects viscosity
 u_ambient = [0, 0.4] # velocity
 p_ambient = 0.3 # density
+def isBlocked(y, x):
+  return x == -1000000000
+  return (x - 50) ** 2 + (y - 50) ** 2 <= 25**2
+
+
+fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+video = cv2.VideoWriter('./latticeboltzmann.mp4', fourcc, 60, (M, N))
 
 
 # distribution of velocities in a single cell at thermal equilibrium
@@ -25,9 +34,6 @@ def getEquilibrium(velocity, density):
   density = np.asarray(density, dtype=np.float32)
   eu = velocity @ e_f.T # relative importance of each available direction
   return np.expand_dims(density,-1) * w * (1 + 3 * eu + 9/2*np.square(eu) - 3/2*np.expand_dims(np.sum(velocity*velocity,axis=-1),-1))
-
-def isBlocked(y, x):
-  return (x - 22.5) ** 2 + (y - 22.5) ** 2 <= 7.5**2
 
 # Initialize to a thermally stable continuous flow field, and set the omega values.
 # Note that isBlocked = True means that omega is 1, so no thermal perturbation occurs before reflection back into the rest of the system.
@@ -49,7 +55,12 @@ while True:
   equilibrium = getEquilibrium(u, p) # get thermal equilibrium distribution
   cells = (1-omega) * equilibrium + omega * cells # decay toward thermal equilibrium
 
+  # Display density
+  gray = cv2.normalize(-p, None, 255, 0, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+  video.write(cv2.merge([gray, gray, gray]))
+
   # Streaming (movement)
+  # This step is slow because np.pad copies the array. Can we do it in place?
   for k, (dx, dy) in enumerate(e):
     if dx > 0 and dy > 0:
       cells[:,:,k] = np.pad(cells[:-dx,:-dy,k], ((dx, 0), (dy, 0)), mode='constant', constant_values=surroundings[k])
@@ -109,6 +120,8 @@ while True:
   """
   #print(s)
   iters += 1
-  #print(iters)
-  if iters == 10000:
+  print(iters)
+  if iters == 100:
     break
+
+video.release()
