@@ -7,19 +7,28 @@ import cv2
 
 #np.seterr(all='raise')
 
-w = np.array([1.0/36, 1.0/9, 1.0/36,
-              1.0/9, 4.0/9, 1.0/9,
-              1.0/36, 1.0/9, 1.0/36], dtype=np.float32) # Normalized boltzmann distribution (thermal)
-e = np.array([[-1,-1],[0,-1],[1,-1],
-              [-1, 0],[0, 0],[1, 0],
-              [-1, 1],[0, 1],[1, 1]])
+# D2Q21 https://arxiv.org/pdf/0908.4520.pdf
+w = np.array([                1/1620,
+                 1/432,       7/360,        1/432,
+                        2/27, 1/12,   2/27,
+         1/1620, 7/360, 1/12, 91/324, 1/12, 7/360, 1/1620,
+                        2/27, 1/12,   2/27,
+                 1/432,       7/360,        1/432,
+                              1/1620], dtype=np.float32) # Normalized boltzmann distribution (thermal)
+e = np.array([                [0,-3],
+              [-2,-2],        [0,-2],       [2,-2],
+                      [-1,-1],[0,-1],[1,-1],
+      [-3, 0],[-2, 0],[-1, 0],[0, 0],[1, 0],[2, 0],[3, 0],
+                      [-1, 1],[0, 1],[1, 1],
+              [-2, 2],        [0, 2],       [2, 2],
+                              [0, 3]])
 e_f = np.asarray(e, dtype=np.float32)
 
 N = 100 # rows
 M = 200 # columns
-OMEGA = 0.8 # affects viscosity
+OMEGA = 0.7 # affects viscosity
 p_ambient = 10 # density
-u_ambient = [0, 0.3] # velocity
+u_ambient = [0, 0.05] # velocity
 def isBlocked(y, x):
   #return x == -10000000
   #return x == y
@@ -52,13 +61,14 @@ omega = np.where(np.expand_dims(blocked,-1), np.array(1,ndmin=3), np.array(OMEGA
 
 #sys.stdout.write("\033[2J")
 
-for iter in range(1000):
+for iter in range(100):
   print(iter)
 
   # Collisions (decay toward boltzmann distribution)
   p = np.sum(cells, axis=2) # total density in this cell
   u = cells @ e_f / np.expand_dims(p, -1) # net velocity in this cell
   np.nan_to_num(u, copy=False)
+  print(u)
   #print(u_ambient, u)
   equilibrium = getEquilibrium(u, p) # get thermal equilibrium distribution
   #print(surroundings[0], cells[:,:,0], equilibrium[:,:,0], "!")
