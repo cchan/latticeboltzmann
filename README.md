@@ -3,7 +3,11 @@ Lattice Boltzmann Method
 
 I promise I'll write more stuff here about what I learned about fluid dynamics simulation when it's not 3AM.
 
-Here's a nice screenshot (top is density, bottom is direction field)
+YouTube video:
+
+[![incorrect lattice boltzmann cfd that looks really cool](https://img.youtube.com/vi/b8ZVsETpFUE/0.jpg)](https://www.youtube.com/watch?v=b8ZVsETpFUE)
+
+Here's a nice screenshot of an older version (top is density, bottom is direction field)
 
 ![screenshot.jpg](screenshot.jpg)
 
