@@ -9,7 +9,7 @@ YouTube video:
 
 Here's a nice screenshot of an older version (top is density, bottom is direction field)
 
-![screenshot.jpg](screenshot.jpg)
+![screenshot](screenshot.png)
 
 References:
 - http://physics.weber.edu/schroeder/javacourse/LatticeBoltzmann.pdf (main one)
