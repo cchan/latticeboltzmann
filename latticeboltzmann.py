@@ -33,11 +33,11 @@ assert((np.sum(e, axis=0) == [0, 0]).all())
 e_f = np.asarray(e, dtype=dtype)
 
 # N rows. M cells in each row.
-N = 400 # rows
-M = 800 # columns
-OMEGA = 0.01 # affects viscosity (0 is completely viscous, 1 is zero viscosity)
+N = 100 # rows
+M = 200 # columns
+OMEGA = 0.05 # affects viscosity (0 is completely viscous, 1 is zero viscosity)
 p_ambient = 100 # density
-u_ambient = [0, 0.3] # velocity BUG: why is anything moving when velocity is [0, 0]? (or is it just near 0 and numerically unstable)
+u_ambient = [0, 0.1] # velocity BUG: why is anything moving when velocity is [0, 0]? (or is it just near 0 and numerically unstable)
 def isBlocked(y, x):
   return np.logical_and(True, (x - N/2) ** 2 + (y - N/2) ** 2 <= (N/16)**2)
 
@@ -99,7 +99,7 @@ stream(cells)
 reflect(cells)
 cells = np.where(np.expand_dims(blocked,-1), cells, np.array(surroundings, ndmin=3))
 
-for iter in range(500):
+for iter in range(5000):
   sys.stdout.write(str(iter)+' ')
   sys.stdout.flush()
 
