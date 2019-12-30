@@ -8,26 +8,18 @@ import math
 import cv2
 from itertools import count
 
-dtype = np.float64
+dtype = np.float32
 
-# D2Q21 https://arxiv.org/pdf/0908.4520.pdf # Normalized boltzmann distribution (thermal)
-r2 = 3/2
-w = np.array([       1/1620,
-        1/432,       7/360,        1/432,
-               2/27, 1/12,   2/27,
-1/1620, 7/360, 1/12, 91/324, 1/12, 7/360, 1/1620,
-               2/27, 1/12,   2/27,
-        1/432,       7/360,        1/432,
-                     1/1620], dtype=dtype)
+# D2Q9 https://arxiv.org/pdf/0908.4520.pdf # Normalized boltzmann distribution (thermal)
+r2 = 3
+w = np.array([1/36, 1/9, 1/36,
+              1/9,  4/9, 1/9,
+              1/36, 1/9, 1/36], dtype=dtype)
 assert(np.all(w == np.flip(w, axis=0)))
 assert(math.isclose(sum(w), 1, rel_tol=1e-6))
-e = np.array([          [0,-3],
-        [-2,-2],        [0,-2],       [2,-2],
-                [-1,-1],[0,-1],[1,-1],
-[-3, 0],[-2, 0],[-1, 0],[0, 0],[1, 0],[2, 0],[3, 0],
-                [-1, 1],[0, 1],[1, 1],
-        [-2, 2],        [0, 2],       [2, 2],
-                        [0, 3]])
+e = np.array([[-1,-1],[0,-1],[1,-1],
+              [-1, 0],[0, 0],[1, 0],
+              [-1, 1],[0, 1],[1, 1]])
 assert(np.all(e == -np.flip(e, axis=0)))
 assert((np.sum(e, axis=0) == [0, 0]).all())
 e_f = np.asarray(e, dtype=dtype)
@@ -37,7 +29,7 @@ N = 300 # rows
 M = 100 # columns
 OMEGA = 0.3 # affects viscosity (0 is completely viscous, 1 is zero viscosity)
 p_ambient = 100 # density
-u_ambient = [0, 0.05] # velocity
+u_ambient = [0, 0.10] # velocity
 p_insides = 100
 u_insides = [0, 0]
 def isBlocked(y, x):
@@ -54,7 +46,7 @@ video = cv2.VideoWriter('./latticeboltzmann.mp4', fourcc, 60, (M, N))
 def getEquilibrium(velocity, density):
   eu = velocity @ e_f.T # relative importance of each available direction, by dot product
   #print(eu.shape, np.square(eu).shape)
-  return np.expand_dims(density, -1) * w * (1 + r2 * eu + r2**2/2*np.square(eu) - r2/2*np.expand_dims(np.sum(velocity*velocity,axis=-1),-1))
+  return np.expand_dims(density, -1) * w * (1 + r2 * eu + r2**2/2*np.square(eu) - r2/2*np.expand_dims(np.sum(np.square(velocity),axis=-1),-1))
 
 # Initialize to a thermally stable continuous flow field, and set the omega (viscosity) values.
 # Note that isBlocked = True means that omega is 1, so no thermal perturbation occurs before reflection back into the rest of the system.
