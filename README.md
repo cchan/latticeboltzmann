@@ -27,6 +27,11 @@ Issues:
 
 Future directions:
 - Javascript in-browser implementation using compute APIs
-- CUDA implementation
+- Cython implementation
+- CUDA implementation using pycuda
+- Julia implementation
+  - With CUDANative.jl
+  - With distributability
 - PyTorch implementation (cf https://github.com/kobejean/tf-cfd?)
+  - Failed, pytorch has a 3-4x slowdown :/
 
