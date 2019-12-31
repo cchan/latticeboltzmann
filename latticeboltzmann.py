@@ -29,13 +29,14 @@ N = 300 # rows
 M = 100 # columns
 OMEGA = 0.3 # affects viscosity (0 is completely viscous, 1 is zero viscosity)
 p_ambient = 100 # density
-u_ambient = [0, 0.10] # velocity
+u_ambient = [-0.10, -0.10] # velocity
 p_insides = 100
 u_insides = [0, 0]
 def isBlocked(y, x):
-  return (10 <= x < M-10 and 10 <= y < N-10) and not \
-         (13 <= x < M-13 and 10 <= y < N-13)
+  #return (10 <= x < M-10 and 10 <= y < N-10) and not \
+  #       (13 <= x < M-13 and 10 <= y < N-13)
   #return (x - N/2) ** 2 + (y - N/2) ** 2 <= (N/25)**2
+  return False
 isBlocked = np.vectorize(isBlocked)
 
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
@@ -69,8 +70,8 @@ def collide(cells, u, p):
 def display(u, p, video):
   #gray = np.asarray(255-p * 500, dtype=np.uint8)
   #video.write(cv2.merge([gray, gray, gray]))
-  h = np.arctan2(u[...,1], u[...,0])/2/math.pi*180
-  s = np.sum(u**2, axis=-1)**0.5*256*1000
+  h = np.arctan2(u[...,0], u[...,1])/2/math.pi*360
+  s = np.sum(u**2, axis=-1)**0.5*256*10
   v = p
   #print(h.shape, s.shape, v.shape)
   #r = cv2.normalize(np.arctan2(u[...,1], u[...,0]), None, 255, 0, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
@@ -78,7 +79,7 @@ def display(u, p, video):
   #b = np.zeros(p.shape, dtype=np.uint8)
   # Hue is 0-179, Saturation and Value are 0-255
   video.write(cv2.cvtColor(cv2.merge([
-    np.asarray(np.clip(h, 0, 179), dtype=np.uint8),
+    np.asarray(np.clip(h/2, 0, 179), dtype=np.uint8),
     np.asarray(np.clip(s, 0, 255), dtype=np.uint8),
     np.asarray(np.clip(v, 0, 255), dtype=np.uint8)
     ]), cv2.COLOR_HSV2BGR))
@@ -112,10 +113,10 @@ try:
       u = cells @ e_f / np.expand_dims(p, -1) # net velocity in this cell
     np.nan_to_num(u, copy=False) # Is this a bad hack? if p == 0 (i.e. blocked) then we want u to be zero.
 
-    # Collisions (decay toward boltzmann distribution)
-    collide(cells, u, p)
     # Display density
     display(u, p, video)
+    # Collisions (decay toward boltzmann distribution)
+    collide(cells, u, p)
     # Streaming (movement)
     stream(cells)
     # Reflect at object edges
