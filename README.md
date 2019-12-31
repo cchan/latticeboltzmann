@@ -25,6 +25,13 @@ Issues:
 - Still haven't been able to replicate vortex shedding; I don't know whether it's actually a code bug or I just am not hitting the right Reynolds numbers.
 - Direction field also looks wrong at first glance. I probably need better visualization as a first step.
 
+Perftesting
+- Use cProfile directly
+  - `python -m cProfile -s tottime latticeboltzmann.py`
+- or use kcachegrind with it
+  - `python -m cProfile -s tottime -o profile_data.pyprof latticeboltzmann.py`
+  - `pyprof2calltree -i profile_data.pyprof -k`
+
 Future directions:
 - Javascript in-browser implementation using compute APIs
 - Cython implementation
