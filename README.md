@@ -1,15 +1,20 @@
 Lattice Boltzmann Method
 ========================
 
-I promise I'll write more stuff here about what I learned about fluid dynamics simulation when it's not 3AM.
+YouTube videos:
 
-YouTube video:
+[![lid-driven tall box vortex](https://img.youtube.com/vi/J1pS6P-js0o/0.jpg)](https://youtu.be/J1pS6P-js0o)
+
+[![cylinder wake at high speed](https://img.youtube.com/vi/wsfL2LaHcFE/0.jpg)](https://youtu.be/wsfL2LaHcFE)
 
 [![incorrect lattice boltzmann cfd that looks really cool](https://img.youtube.com/vi/b8ZVsETpFUE/0.jpg)](https://www.youtube.com/watch?v=b8ZVsETpFUE)
 
-Here's a nice screenshot of an older version (top is density, bottom is direction field)
+Older version screenshot (top is density, bottom is direction field):
 
 ![screenshot](screenshot.png)
+
+
+I promise I'll write more stuff here about what I learned about fluid dynamics simulation when it's not 3AM.
 
 References:
 - http://physics.weber.edu/schroeder/javacourse/LatticeBoltzmann.pdf (main one)

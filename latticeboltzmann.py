@@ -10,7 +10,7 @@ from itertools import count
 
 dtype = np.float32
 
-# D2Q9 https://arxiv.org/pdf/0908.4520.pdf # Normalized boltzmann distribution (thermal)
+# Constants for D2Q9 https://arxiv.org/pdf/0908.4520.pdf # Normalized boltzmann distribution (thermal)
 r2 = 3
 w = np.array([1/36, 1/9, 1/36,
               1/9,  4/9, 1/9,
@@ -24,19 +24,19 @@ assert(np.all(e == -np.flip(e, axis=0)))
 assert((np.sum(e, axis=0) == [0, 0]).all())
 e_f = np.asarray(e, dtype=dtype)
 
-# N rows. M cells in each row.
+# Configuration.
 N = 300 # rows
-M = 100 # columns
-OMEGA = 0.3 # affects viscosity (0 is completely viscous, 1 is zero viscosity)
+M = 800 # columns
+OMEGA = 0.8 # affects viscosity (0 is completely viscous, 1 is zero viscosity)
 p_ambient = 100 # density
-u_ambient = [-0.10, -0.10] # velocity
-p_insides = 100
-u_insides = [0, 0]
+u_ambient = [0, 0.3] # velocity
+p_insides = p_ambient
+u_insides = u_ambient
 def isBlocked(y, x):
   #return (10 <= x < M-10 and 10 <= y < N-10) and not \
   #       (13 <= x < M-13 and 10 <= y < N-13)
-  #return (x - N/2) ** 2 + (y - N/2) ** 2 <= (N/25)**2
-  return False
+  #return (x - N/2) ** 2 + (y - N/2) ** 2 <= (N/16)**2
+  return np.logical_and(np.abs(x - N/2) <= N/9, np.abs(y - N/2) <= N/9)
 isBlocked = np.vectorize(isBlocked)
 
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
@@ -70,8 +70,8 @@ def collide(cells, u, p):
 def display(u, p, video):
   #gray = np.asarray(255-p * 500, dtype=np.uint8)
   #video.write(cv2.merge([gray, gray, gray]))
-  h = np.arctan2(u[...,0], u[...,1])/2/math.pi*360
-  s = np.sum(u**2, axis=-1)**0.5*256*10
+  h = (np.arctan2(u[...,0], u[...,1]) + math.pi)/2/math.pi*360
+  s = np.sum(u**2, axis=-1)**0.5*256*100000
   v = p
   #print(h.shape, s.shape, v.shape)
   #r = cv2.normalize(np.arctan2(u[...,1], u[...,0]), None, 255, 0, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
