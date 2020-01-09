@@ -5,7 +5,8 @@ import numpy as np
 import sys
 import time
 import math
-import cv2
+import imageio
+import matplotlib
 from itertools import count
 
 dtype = np.float32
@@ -39,8 +40,7 @@ def isBlocked(y, x):
   return np.logical_and(np.abs(x - N/2) <= N/9, np.abs(y - N/2) <= N/9)
 isBlocked = np.vectorize(isBlocked)
 
-fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-video = cv2.VideoWriter('./latticeboltzmann.mp4', fourcc, 60, (M, N))
+video = imageio.get_writer('./latticeboltzmann.mp4', fps=60)
 
 # distribution of velocities in a single cell at thermal equilibrium
 
@@ -70,19 +70,15 @@ def collide(cells, u, p):
 def display(u, p, video):
   #gray = np.asarray(255-p * 500, dtype=np.uint8)
   #video.write(cv2.merge([gray, gray, gray]))
-  h = (np.arctan2(u[...,0], u[...,1]) + math.pi)/2/math.pi*360
-  s = np.sum(u**2, axis=-1)**0.5*256*100000
+  h = (np.arctan2(u[...,0], u[...,1]) + math.pi)/2/math.pi
+  s = np.sum(u**2, axis=-1)**0.5*100000
   v = p
   #print(h.shape, s.shape, v.shape)
   #r = cv2.normalize(np.arctan2(u[...,1], u[...,0]), None, 255, 0, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
   #g = cv2.normalize(-np.arctan2(u[...,1], u[...,0]), None, 255, 0, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
   #b = np.zeros(p.shape, dtype=np.uint8)
   # Hue is 0-179, Saturation and Value are 0-255
-  video.write(cv2.cvtColor(cv2.merge([
-    np.asarray(np.clip(h/2, 0, 179), dtype=np.uint8),
-    np.asarray(np.clip(s, 0, 255), dtype=np.uint8),
-    np.asarray(np.clip(v, 0, 255), dtype=np.uint8)
-    ]), cv2.COLOR_HSV2BGR))
+  video.append_data((matplotlib.colors.hsv_to_rgb(np.clip(np.stack([h,s,v], 2), 0, 1))*255.99).astype(np.uint8))
   #video.write(cv2.merge([r,g,b]))
 
 def stream(cells):
@@ -124,4 +120,4 @@ try:
 
 except KeyboardInterrupt:
   print("Done")
-  video.release()
+  video.close()
