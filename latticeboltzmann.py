@@ -29,8 +29,8 @@ assert((np.sum(e, axis=0) == [0, 0]).all())
 e_f = np.asarray(e, dtype=dtype)
 
 # Configuration.
-N = 256 # rows
-M = 500 # columns
+N = 1024 # rows
+M = 2048 # columns
 OMEGA = 0.8 # affects viscosity (0 is completely viscous, 1 is zero viscosity)
 p_ambient = 100 # density
 u_ambient = [0, 0.1] # velocity
@@ -98,28 +98,34 @@ stream(cells)
 reflect(cells)
 cells = np.where(np.expand_dims(blocked,-1), cells, np.array(insides, ndmin=3))
 
+cells_gpu = drv.to_device(cells)
+newcells_gpu = drv.to_device(cells)
+blocked_gpu = drv.to_device(blocked)
+surroundings_gpu = drv.to_device(surroundings)
+frame_gpu = drv.to_device(np.empty((N, M, 3), dtype=np.uint8))
+
 try:
   for iter in count():
-    sys.stdout.write(str(iter)+' ')
-    sys.stdout.flush()
+    if iter % 10 == 0:
+      sys.stdout.write(str(iter)+' ')
+      sys.stdout.flush()
 
-    # Get the total density and net velocity for each cell
-    p = np.sum(cells, axis=2) # total density in this cell
-    with np.errstate(divide='ignore', invalid='ignore'):
-      u = cells @ e_f / np.expand_dims(p, -1) # net velocity in this cell
-    np.nan_to_num(u, copy=False) # Is this a bad hack? if p == 0 (i.e. blocked) then we want u to be zero.
+    # # Get the total density and net velocity for each cell
+    # p = np.sum(cells, axis=2) # total density in this cell
+    # with np.errstate(divide='ignore', invalid='ignore'):
+    #   u = cells @ e_f / np.expand_dims(p, -1) # net velocity in this cell
+    # np.nan_to_num(u, copy=False) # Is this a bad hack? if p == 0 (i.e. blocked) then we want u to be zero.
 
-    # Display density
-    display(u, p, video)
     # Fused version
     newcells = np.empty_like(cells)
-    # print(newcells.shape, newcells.dtype)
-    # print(cells.shape, cells.dtype)
-    # print(blocked.shape, blocked.dtype)
-    # print(surroundings.shape, surroundings.dtype)
-    fused_collide_stream(drv.Out(newcells), drv.In(cells), drv.In(blocked), drv.In(surroundings),
+    fused_collide_stream(newcells_gpu, frame_gpu, cells_gpu, blocked_gpu, surroundings_gpu,
         block=(1, N, 1), grid=(M, 1, 1))
-    cells = newcells
+    frame = drv.from_device(frame_gpu, (N, M, 3), np.uint8)
+    video.append_data(frame)
+    newcells_gpu, cells_gpu = cells_gpu, newcells_gpu
+
+    # # Display density
+    # display(u, p, video)
     # # Collisions (decay toward boltzmann distribution)
     # collide(cells, u, p)
     # # Streaming (movement)
@@ -129,4 +135,9 @@ try:
 
 except KeyboardInterrupt:
   print("Done")
+  cells_gpu.free()
+  newcells_gpu.free()
+  blocked_gpu.free()
+  surroundings_gpu.free()
+  frame_gpu.free()
   video.close()
