@@ -8,6 +8,7 @@ import math
 import imageio
 import matplotlib
 from itertools import count
+#from latticeboltzmann_helpers import fused_collide_stream
 
 dtype = np.float32
 
@@ -43,10 +44,8 @@ isBlocked = np.vectorize(isBlocked)
 video = imageio.get_writer('./latticeboltzmann.mp4', fps=60)
 
 # distribution of velocities in a single cell at thermal equilibrium
-
 def getEquilibrium(velocity, density):
   eu = velocity @ e_f.T # relative importance of each available direction, by dot product
-  #print(eu.shape, np.square(eu).shape)
   return np.expand_dims(density, -1) * w * (1 + r2 * eu + r2**2/2*np.square(eu) - r2/2*np.expand_dims(np.sum(np.square(velocity),axis=-1),-1))
 
 # Initialize to a thermally stable continuous flow field, and set the omega (viscosity) values.
@@ -59,6 +58,12 @@ blocked = np.fromfunction(isBlocked, (N, M))
 omega = np.where(np.expand_dims(blocked,-1), np.array(1,ndmin=3), np.array(OMEGA, ndmin=3))
 
 
+def display(u, p, video):
+  h = (np.arctan2(u[...,0], u[...,1]) + math.pi)/2/math.pi
+  s = np.sum(u**2, axis=-1)**0.5*100000
+  v = p
+  video.append_data((matplotlib.colors.hsv_to_rgb(np.clip(np.stack([h,s,v], 2), 0, 1))*255.99).astype(np.uint8))
+
 def collide(cells, u, p):
   equilibrium = getEquilibrium(u, p) # get thermal equilibrium distribution given the net density/velocity in this cell
 
@@ -66,20 +71,6 @@ def collide(cells, u, p):
   cells -= equilibrium
   cells *= omega
   cells += equilibrium
-
-def display(u, p, video):
-  #gray = np.asarray(255-p * 500, dtype=np.uint8)
-  #video.write(cv2.merge([gray, gray, gray]))
-  h = (np.arctan2(u[...,0], u[...,1]) + math.pi)/2/math.pi
-  s = np.sum(u**2, axis=-1)**0.5*100000
-  v = p
-  #print(h.shape, s.shape, v.shape)
-  #r = cv2.normalize(np.arctan2(u[...,1], u[...,0]), None, 255, 0, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-  #g = cv2.normalize(-np.arctan2(u[...,1], u[...,0]), None, 255, 0, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-  #b = np.zeros(p.shape, dtype=np.uint8)
-  # Hue is 0-179, Saturation and Value are 0-255
-  video.append_data((matplotlib.colors.hsv_to_rgb(np.clip(np.stack([h,s,v], 2), 0, 1))*255.99).astype(np.uint8))
-  #video.write(cv2.merge([r,g,b]))
 
 def stream(cells):
   for k, (dy, dx) in enumerate(e):
@@ -90,7 +81,6 @@ def stream(cells):
 
 def reflect(cells):
   cells[blocked] = np.flip(cells[blocked], axis=-1)
-  #cells[0:3,:,:] = getEquilibrium(np.array([[0,0.2]]), [p_ambient])[0]
 
 
 cells = np.where(np.expand_dims(blocked,-1), np.array(0,ndmin=3), np.array(insides, ndmin=3)) # cells should have k as its first dimension for cache efficiency
