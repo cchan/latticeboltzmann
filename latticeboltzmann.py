@@ -8,7 +8,9 @@ import math
 import imageio
 import matplotlib
 from itertools import count
-#from latticeboltzmann_helpers import fused_collide_stream
+import pycuda.autoinit
+import pycuda.driver as drv
+from pycuda.compiler import SourceModule
 
 dtype = np.float32
 
@@ -27,18 +29,18 @@ assert((np.sum(e, axis=0) == [0, 0]).all())
 e_f = np.asarray(e, dtype=dtype)
 
 # Configuration.
-N = 300 # rows
-M = 800 # columns
+N = 1024 # rows
+M = 2000 # columns
 OMEGA = 0.8 # affects viscosity (0 is completely viscous, 1 is zero viscosity)
 p_ambient = 100 # density
-u_ambient = [0, 0.3] # velocity
+u_ambient = [0, 0.1] # velocity
 p_insides = p_ambient
 u_insides = u_ambient
 def isBlocked(y, x):
   #return (10 <= x < M-10 and 10 <= y < N-10) and not \
   #       (13 <= x < M-13 and 10 <= y < N-13)
-  #return (x - N/2) ** 2 + (y - N/2) ** 2 <= (N/16)**2
-  return np.logical_and(np.abs(x - N/2) <= N/9, np.abs(y - N/2) <= N/9)
+  return (x - N/2) ** 2 + (y - N/2) ** 2 <= (N/16)**2
+  #return np.logical_and(np.abs(x - N/2) <= N/9, np.abs(y - N/2) <= N/9)
 isBlocked = np.vectorize(isBlocked)
 
 video = imageio.get_writer('./latticeboltzmann.mp4', fps=60)
@@ -82,6 +84,14 @@ def stream(cells):
 def reflect(cells):
   cells[blocked] = np.flip(cells[blocked], axis=-1)
 
+with open("lb_cuda_kernel.cu", "r") as cu:
+    mod = SourceModule(f"""
+      #define N {N}
+      #define M {M}
+      #define OMEGA {OMEGA}
+    """ + cu.read(), no_extern_c=1)
+fused_collide_stream = mod.get_function("fused_collide_stream")
+
 
 cells = np.where(np.expand_dims(blocked,-1), np.array(0,ndmin=3), np.array(insides, ndmin=3)) # cells should have k as its first dimension for cache efficiency
 stream(cells)
@@ -89,7 +99,7 @@ reflect(cells)
 cells = np.where(np.expand_dims(blocked,-1), cells, np.array(insides, ndmin=3))
 
 try:
-  for iter in count():
+  for iter in range(10):#count():
     sys.stdout.write(str(iter)+' ')
     sys.stdout.flush()
 
@@ -101,12 +111,17 @@ try:
 
     # Display density
     display(u, p, video)
-    # Collisions (decay toward boltzmann distribution)
-    collide(cells, u, p)
-    # Streaming (movement)
-    stream(cells)
-    # Reflect at object edges
-    reflect(cells)
+    # Fused version
+    newcells = np.empty_like(cells)
+    fused_collide_stream(drv.Out(newcells), drv.In(cells), drv.In(blocked), drv.In(surroundings),
+        block=(1, N, 1), grid=(M, 1, 1))
+    cells = newcells
+    # # Collisions (decay toward boltzmann distribution)
+    # collide(cells, u, p)
+    # # Streaming (movement)
+    # stream(cells)
+    # # Reflect at object edges
+    # reflect(cells)
 
 except KeyboardInterrupt:
   print("Done")
