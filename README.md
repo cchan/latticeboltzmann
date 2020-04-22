@@ -13,6 +13,18 @@ Older version screenshot (top is density, bottom is direction field):
 
 ![screenshot](screenshot.png)
 
+## Requirements
+
+My setup:
+- AMD Ryzen 3700x
+- Nvidia GeForce RTX 2070 with drivers 440.59 and CUDA 10.2
+- Ubuntu 18.04
+- Python 3.7.4 using conda
+I suspect but cannot test that this will work with much earlier versions / lower specs.
+
+Install pycuda from source with `./configure.py --cuda-enable-gl`
+
+## Etc
 
 I promise I'll write more stuff here about what I learned about fluid dynamics simulation when it's not 3AM.
 

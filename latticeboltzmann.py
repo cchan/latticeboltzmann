@@ -91,7 +91,7 @@ with open("lb_cuda_kernel.cu", "r") as cu:
       #define OMEGA {OMEGA}
     """ + cu.read(), no_extern_c=1)
 fused_collide_stream = mod.get_function("fused_collide_stream")
-
+fused_collide_stream.prepare("PPPPP")
 
 cells = np.where(np.expand_dims(blocked,-1), np.array(0,ndmin=3,dtype=dtype), np.array(insides, ndmin=3, dtype=dtype)) # cells should have k as its first dimension for cache efficiency
 stream(cells)
@@ -104,6 +104,9 @@ blocked_gpu = drv.to_device(blocked)
 surroundings_gpu = drv.to_device(surroundings)
 frame_gpu = drv.to_device(np.empty((N, M, 3), dtype=np.uint8))
 
+from threading import Thread
+
+a = None
 try:
   for iter in count():
     if iter % 10 == 0:
@@ -118,10 +121,14 @@ try:
 
     # Fused version
     newcells = np.empty_like(cells)
-    fused_collide_stream(newcells_gpu, frame_gpu, cells_gpu, blocked_gpu, surroundings_gpu,
-        block=(1, N, 1), grid=(M, 1, 1))
+    fused_collide_stream.prepared_call((M, 1, 1), (1, N, 1),
+      newcells_gpu, frame_gpu, cells_gpu, blocked_gpu, surroundings_gpu)
     frame = drv.from_device(frame_gpu, (N, M, 3), np.uint8)
-    video.append_data(frame)
+    if a is not None:
+      a.join()
+    a = Thread(target=video.append_data, args=(frame,))
+    a.start()
+
     newcells_gpu, cells_gpu = cells_gpu, newcells_gpu
 
     # # Display density
@@ -135,9 +142,9 @@ try:
 
 except KeyboardInterrupt:
   print("Done")
+  video.close()
   cells_gpu.free()
   newcells_gpu.free()
   blocked_gpu.free()
   surroundings_gpu.free()
   frame_gpu.free()
-  video.close()
