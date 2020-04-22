@@ -29,8 +29,8 @@ assert((np.sum(e, axis=0) == [0, 0]).all())
 e_f = np.asarray(e, dtype=dtype)
 
 # Configuration.
-N = 1024 # rows
-M = 2000 # columns
+N = 256 # rows
+M = 500 # columns
 OMEGA = 0.8 # affects viscosity (0 is completely viscous, 1 is zero viscosity)
 p_ambient = 100 # density
 u_ambient = [0, 0.1] # velocity
@@ -93,13 +93,13 @@ with open("lb_cuda_kernel.cu", "r") as cu:
 fused_collide_stream = mod.get_function("fused_collide_stream")
 
 
-cells = np.where(np.expand_dims(blocked,-1), np.array(0,ndmin=3), np.array(insides, ndmin=3)) # cells should have k as its first dimension for cache efficiency
+cells = np.where(np.expand_dims(blocked,-1), np.array(0,ndmin=3,dtype=dtype), np.array(insides, ndmin=3, dtype=dtype)) # cells should have k as its first dimension for cache efficiency
 stream(cells)
 reflect(cells)
 cells = np.where(np.expand_dims(blocked,-1), cells, np.array(insides, ndmin=3))
 
 try:
-  for iter in range(10):#count():
+  for iter in count():
     sys.stdout.write(str(iter)+' ')
     sys.stdout.flush()
 
@@ -113,6 +113,10 @@ try:
     display(u, p, video)
     # Fused version
     newcells = np.empty_like(cells)
+    # print(newcells.shape, newcells.dtype)
+    # print(cells.shape, cells.dtype)
+    # print(blocked.shape, blocked.dtype)
+    # print(surroundings.shape, surroundings.dtype)
     fused_collide_stream(drv.Out(newcells), drv.In(cells), drv.In(blocked), drv.In(surroundings),
         block=(1, N, 1), grid=(M, 1, 1))
     cells = newcells

@@ -1,3 +1,6 @@
+// # Constants for D2Q9 https://arxiv.org/pdf/0908.4520.pdf # Normalized boltzmann distribution (thermal)
+// assert(np.all(w == np.flip(w, axis=0)))
+// assert(math.isclose(sum(w), 1, rel_tol=1e-6))
 #define r2 3
 __constant__ const float w[3][3] = {{1.0/36, 1.0/9, 1.0/36},
                                     {1.0/9,  4.0/9, 1.0/9},
@@ -35,6 +38,8 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, const grid
             ux += cell.d[dy+1][dx+1] * dx;
         }
     }
+    uy /= d;
+    ux /= d;
     for(int dy = -1; dy <= 1; dy ++) {
         for(int dx = -1; dx <= 1; dx ++) {
             if((y+dy < 0) | (y+dy >= N) | (x+dx < 0) | (x+dx >= M)) {
