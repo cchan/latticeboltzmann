@@ -75,8 +75,6 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
     int y = blockIdx.y * blockDim.y + threadIdx.y;
     int x = blockIdx.x * blockDim.x + threadIdx.x;
 
-    // look up some hyper optimized convolutional filter cuda impl as a model
-
     // Calculate aggregates
     cell_t<float> cell = cells->d[y][x];
     float s1 = cell.d[0][0] + cell.d[0][1] + cell.d[0][2];

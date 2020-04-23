@@ -118,7 +118,7 @@ def appendData(frame, stream):
   video.append_data(frame)
 
 try:
-  for iter in range(1000):#count():
+  for iter in range(5000):#count():
     if iter % 10 == 0:
       sys.stdout.write(str(iter)+' ')
       sys.stdout.flush()
@@ -143,6 +143,7 @@ try:
     frame1, frame2 = frame2, frame1
     frame1_gpu, frame2_gpu = frame2_gpu, frame1_gpu
     stream1, stream2 = stream2, stream1
+    a1, a2 = a2, a1
 
     # # Display density
     # display(u, p, video)
