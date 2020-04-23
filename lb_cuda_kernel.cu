@@ -1,6 +1,4 @@
-#include <cuda_runtime_api.h>
-
-#define PI 3.141592653589
+#define PI 3.141592653589f
 
 // Adapted from https://github.com/hellopatrick/cuda-samples/blob/master/hsv/kernel.cu
 __device__ uchar3 hsv_to_rgb(float h, float s, float v) {
@@ -48,7 +46,7 @@ __device__ uchar3 hsv_to_rgb(float h, float s, float v) {
 // # Constants for D2Q9 https://arxiv.org/pdf/0908.4520.pdf # Normalized boltzmann distribution (thermal)
 // assert(np.all(w == np.flip(w, axis=0)))
 // assert(math.isclose(sum(w), 1, rel_tol=1e-6))
-#define r2 3
+#define r2 3.0f
 __constant__ const float w[3][3] = {{1.0/36, 1.0/9, 1.0/36},
                                     {1.0/9,  4.0/9, 1.0/9},
                                     {1.0/36, 1.0/9, 1.0/36}};
@@ -102,6 +100,8 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
             } else {
                 float eu = dy * uy + dx * ux;
                 float eq = d * w[dy+1][dx+1] * (1 + r2 * eu + r2*r2/2*eu*eu - r2/2*(ux*ux + uy*uy));
+                if(eq - surroundings->d[dy+1][dx+1] > 0.0001)
+                    printf("%f %f;", eq, surroundings->d[dy+1][dx+1]);
                 // Decay toward equilibrium, and assign to new cell location
                 if(blocked->d[y+dy][x+dx]) {
                     // Reflected because blocked, also OMEGA = 1

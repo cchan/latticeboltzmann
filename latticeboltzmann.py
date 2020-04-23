@@ -29,17 +29,18 @@ assert((np.sum(e, axis=0) == [0, 0]).all())
 e_f = np.asarray(e, dtype=dtype)
 
 # Configuration.
-N = 1024 # rows
-M = 4096 # columns
-OMEGA = 0.8 # affects viscosity (0 is completely viscous, 1 is zero viscosity)
+N = 2160 # rows
+M = 3840 # columns
+OMEGA = 0.4 # affects viscosity (0 is completely viscous, 1 is zero viscosity)
 p_ambient = 100 # density
-u_ambient = [0, 0.1] # velocity
+u_ambient = [0, 0.2] # velocity
 p_insides = p_ambient
 u_insides = u_ambient
 def isBlocked(y, x):
   #return (10 <= x < M-10 and 10 <= y < N-10) and not \
   #       (13 <= x < M-13 and 10 <= y < N-13)
-  return (x - N/2) ** 2 + (y - N/2) ** 2 <= (N/25)**2
+  return False
+  #return (x - N/2) ** 2 + (y - N/2) ** 2 <= (N/25)**2
   #return np.logical_and(np.abs(x - N/2) <= N/9, np.abs(y - N/2) <= N/9)
 isBlocked = np.vectorize(isBlocked)
 
@@ -118,7 +119,7 @@ def appendData(frame, stream):
   video.append_data(frame)
 
 try:
-  for iter in range(5000):#count():
+  for iter in range(2000):#count():
     if iter % 10 == 0:
       sys.stdout.write(str(iter)+' ')
       sys.stdout.flush()
@@ -130,7 +131,7 @@ try:
     # np.nan_to_num(u, copy=False) # Is this a bad hack? if p == 0 (i.e. blocked) then we want u to be zero.
 
     # Fused version
-    fused_collide_stream.prepared_async_call((M//16, 32, 1), (16, N//32, 1), stream1,
+    fused_collide_stream.prepared_async_call((M//16, N//32, 1), (16, 32, 1), stream1,
       newcells_gpu, frame1_gpu, cells_gpu, blocked_gpu, surroundings_gpu)
     if iter % 10 == 0:
       if a1 is not None:
