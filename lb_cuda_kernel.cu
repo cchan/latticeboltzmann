@@ -79,18 +79,12 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
 
     // Calculate aggregates
     cell_t<float> cell = cells->d[y][x];
-    float d = 0, uy = 0, ux = 0;
-    #pragma unroll
-    for(int dy = -1; dy <= 1; dy ++) {
-        #pragma unroll
-        for(int dx = -1; dx <= 1; dx ++) {
-            d += cell.d[dy+1][dx+1];
-            uy += cell.d[dy+1][dx+1] * dy;
-            ux += cell.d[dy+1][dx+1] * dx;
-        }
-    }
-    uy /= d;
-    ux /= d;
+    float s1 = cell.d[0][0] + cell.d[0][1] + cell.d[0][2];
+    float s2 = cell.d[1][0] + cell.d[1][1] + cell.d[1][2];
+    float s3 = cell.d[2][0] + cell.d[2][1] + cell.d[2][2];
+    float d = s1 + s2 + s3; // Total density
+    float uy = (s3 - s1)/d; // Y component of average velocity
+    float ux = (cell.d[0][2] + cell.d[1][2] + cell.d[2][2] - cell.d[0][0] - cell.d[1][0] - cell.d[2][0])/d; // X component of average velocity
 
     // Display the frame
     float h = atan2f(uy, ux) + PI;
