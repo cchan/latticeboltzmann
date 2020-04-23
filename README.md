@@ -27,12 +27,12 @@ Install pycuda from source with `./configure.py --cuda-enable-gl`
 ## Benchmarking
 
 ### Python profiling:
-`python -m cProfile -s cumtime latticeboltzmann.py | less`
+Run `python -m cProfile -s cumtime latticeboltzmann.py | less` for perhaps a minute.
 
 ### Nvidia profiling:
-First allow NV usage: `echo 'options nvidia "NVreg_RestrictProfilingToAdminUsers=0"' | sudo tee /etc/modprobe.d/nsight-privilege.conf` and reboot
+First allow NV usage: `echo 'options nvidia "NVreg_RestrictProfilingToAdminUsers=0"' | sudo tee /etc/modprobe.d/nsight-privilege.conf` and reboot.
 
-Then run `nv-nsight-cu-cli --target-processes all python latticeboltzmann.py`
+Then run `nv-nsight-cu-cli --target-processes all python latticeboltzmann.py`. A few seconds of samples will do.
 
 ## Etc
 
