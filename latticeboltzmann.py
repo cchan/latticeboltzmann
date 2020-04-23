@@ -102,13 +102,23 @@ cells_gpu = drv.to_device(cells)
 newcells_gpu = drv.to_device(cells)
 blocked_gpu = drv.to_device(blocked)
 surroundings_gpu = drv.to_device(surroundings)
-frame_gpu = drv.to_device(np.empty((N, M, 3), dtype=np.uint8))
+frame1_gpu = drv.to_device(np.empty((N, M, 3), dtype=np.uint8))
+frame2_gpu = drv.to_device(np.empty((N, M, 3), dtype=np.uint8))
+
+stream1 = drv.Stream(flags=0)
+stream2 = drv.Stream(flags=0)
+frame1 = drv.pagelocked_empty((N, M, 3), dtype=np.uint8)
+frame2 = drv.pagelocked_empty((N, M, 3), dtype=np.uint8)
 
 from threading import Thread
-a = None
+a1 = None
+a2 = None
+def appendData(frame, stream):
+  stream.synchronize()
+  video.append_data(frame)
 
 try:
-  for iter in count():
+  for iter in range(1000):#count():
     if iter % 10 == 0:
       sys.stdout.write(str(iter)+' ')
       sys.stdout.flush()
@@ -120,16 +130,19 @@ try:
     # np.nan_to_num(u, copy=False) # Is this a bad hack? if p == 0 (i.e. blocked) then we want u to be zero.
 
     # Fused version
-    fused_collide_stream.prepared_call((M, 1, 1), (1, N, 1),
-      newcells_gpu, frame_gpu, cells_gpu, blocked_gpu, surroundings_gpu)
-    if iter % 20 == 0:
-      frame = drv.from_device(frame_gpu, (N, M, 3), np.uint8)
-      if a is not None:
-        a.join()
-      a = Thread(target=video.append_data, args=(frame,))
-      a.start()
+    fused_collide_stream.prepared_async_call((M, 1, 1), (1, N, 1), stream1,
+      newcells_gpu, frame1_gpu, cells_gpu, blocked_gpu, surroundings_gpu)
+    if iter % 10 == 0:
+      if a1 is not None:
+        a1.join()
+      drv.memcpy_dtoh_async(frame1, frame1_gpu, stream=stream1)
+      a1 = Thread(target=appendData, args=(frame1, stream1))
+      a1.start()
 
     newcells_gpu, cells_gpu = cells_gpu, newcells_gpu
+    frame1, frame2 = frame2, frame1
+    frame1_gpu, frame2_gpu = frame2_gpu, frame1_gpu
+    stream1, stream2 = stream2, stream1
 
     # # Display density
     # display(u, p, video)
@@ -142,9 +155,6 @@ try:
 
 except KeyboardInterrupt:
   print("Done")
+  a1.join()
+  a2.join()
   video.close()
-  cells_gpu.free()
-  newcells_gpu.free()
-  blocked_gpu.free()
-  surroundings_gpu.free()
-  frame_gpu.free()

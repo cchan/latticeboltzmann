@@ -26,6 +26,8 @@ Install pycuda from source with `./configure.py --cuda-enable-gl`
 
 ## Benchmarking
 
+`hyperfine` is nice, from github.com/sharkdp/hyperfine.
+
 ### Python profiling:
 Run `python -m cProfile -s cumtime latticeboltzmann.py | less` for perhaps a minute.
 
@@ -33,6 +35,8 @@ Run `python -m cProfile -s cumtime latticeboltzmann.py | less` for perhaps a min
 First allow NV usage: `echo 'options nvidia "NVreg_RestrictProfilingToAdminUsers=0"' | sudo tee /etc/modprobe.d/nsight-privilege.conf` and reboot.
 
 Then run `nv-nsight-cu-cli --target-processes all python latticeboltzmann.py`. A few seconds of samples will do.
+
+`nvvp` is also nice, but you need to `sudo apt install openjdk-8-jdk` then `nvvp -vm /usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java`.
 
 ## Etc
 
