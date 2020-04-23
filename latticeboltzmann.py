@@ -30,7 +30,7 @@ e_f = np.asarray(e, dtype=dtype)
 
 # Configuration.
 N = 1024 # rows
-M = 2048 # columns
+M = 4096 # columns
 OMEGA = 0.8 # affects viscosity (0 is completely viscous, 1 is zero viscosity)
 p_ambient = 100 # density
 u_ambient = [0, 0.1] # velocity
@@ -39,7 +39,7 @@ u_insides = u_ambient
 def isBlocked(y, x):
   #return (10 <= x < M-10 and 10 <= y < N-10) and not \
   #       (13 <= x < M-13 and 10 <= y < N-13)
-  return (x - N/2) ** 2 + (y - N/2) ** 2 <= (N/16)**2
+  return (x - N/2) ** 2 + (y - N/2) ** 2 <= (N/25)**2
   #return np.logical_and(np.abs(x - N/2) <= N/9, np.abs(y - N/2) <= N/9)
 isBlocked = np.vectorize(isBlocked)
 
@@ -89,7 +89,7 @@ with open("lb_cuda_kernel.cu", "r") as cu:
       #define N {N}
       #define M {M}
       #define OMEGA {OMEGA}
-    """ + cu.read(), no_extern_c=1)
+    """ + cu.read(), no_extern_c=1, options=['--use_fast_math', '-O3', '-Xptxas', '-O3,-v'])
 fused_collide_stream = mod.get_function("fused_collide_stream")
 fused_collide_stream.prepare("PPPPP")
 
@@ -105,8 +105,8 @@ surroundings_gpu = drv.to_device(surroundings)
 frame_gpu = drv.to_device(np.empty((N, M, 3), dtype=np.uint8))
 
 from threading import Thread
-
 a = None
+
 try:
   for iter in count():
     if iter % 10 == 0:
@@ -120,14 +120,14 @@ try:
     # np.nan_to_num(u, copy=False) # Is this a bad hack? if p == 0 (i.e. blocked) then we want u to be zero.
 
     # Fused version
-    newcells = np.empty_like(cells)
     fused_collide_stream.prepared_call((M, 1, 1), (1, N, 1),
       newcells_gpu, frame_gpu, cells_gpu, blocked_gpu, surroundings_gpu)
-    frame = drv.from_device(frame_gpu, (N, M, 3), np.uint8)
-    if a is not None:
-      a.join()
-    a = Thread(target=video.append_data, args=(frame,))
-    a.start()
+    if iter % 20 == 0:
+      frame = drv.from_device(frame_gpu, (N, M, 3), np.uint8)
+      if a is not None:
+        a.join()
+      a = Thread(target=video.append_data, args=(frame,))
+      a.start()
 
     newcells_gpu, cells_gpu = cells_gpu, newcells_gpu
 

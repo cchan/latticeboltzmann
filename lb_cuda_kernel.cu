@@ -80,7 +80,9 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
     // Calculate aggregates
     cell_t<float> cell = cells->d[y][x];
     float d = 0, uy = 0, ux = 0;
+    #pragma unroll
     for(int dy = -1; dy <= 1; dy ++) {
+        #pragma unroll
         for(int dx = -1; dx <= 1; dx ++) {
             d += cell.d[dy+1][dx+1];
             uy += cell.d[dy+1][dx+1] * dy;
@@ -92,12 +94,14 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
 
     // Display the frame
     float h = atan2f(uy, ux) + PI;
-    float s = __saturatef(100000 * sqrtf(ux*ux+uy*uy));
+    float s = __saturatef(1000 * sqrtf(ux*ux+uy*uy));
     float v = __saturatef(d);
     frame->d[y][x] = hsv_to_rgb(h, s, v);
 
     // Collide and stream
+    #pragma unroll
     for(int dy = -1; dy <= 1; dy ++) {
+        #pragma unroll
         for(int dx = -1; dx <= 1; dx ++) {
             if((y+dy < 0) | (y+dy >= N) | (x+dx < 0) | (x+dx >= M)) {
                 // If we're streaming out to surroundings,

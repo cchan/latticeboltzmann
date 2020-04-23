@@ -24,6 +24,16 @@ I suspect but cannot test that this will work with much earlier versions / lower
 
 Install pycuda from source with `./configure.py --cuda-enable-gl`
 
+## Benchmarking
+
+### Python profiling:
+`python -m cProfile -s cumtime latticeboltzmann.py | less`
+
+### Nvidia profiling:
+First allow NV usage: `echo 'options nvidia "NVreg_RestrictProfilingToAdminUsers=0"' | sudo tee /etc/modprobe.d/nsight-privilege.conf` and reboot
+
+Then run `nv-nsight-cu-cli --target-processes all python latticeboltzmann.py`
+
 ## Etc
 
 I promise I'll write more stuff here about what I learned about fluid dynamics simulation when it's not 3AM.
