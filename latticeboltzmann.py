@@ -118,7 +118,7 @@ def appendData(frame, stream):
   video.append_data(frame)
 
 try:
-  for iter in range(50000):#count():
+  for iter in range(25000):#count():
     if iter % 10 == 0:
       sys.stdout.write(str(iter)+' ')
       sys.stdout.flush()
