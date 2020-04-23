@@ -100,8 +100,6 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
             } else {
                 float eu = dy * uy + dx * ux;
                 float eq = d * w[dy+1][dx+1] * (1 + r2 * eu + r2*r2/2*eu*eu - r2/2*(ux*ux + uy*uy));
-                if(eq - surroundings->d[dy+1][dx+1] > 0.0001)
-                    printf("%f %f;", eq, surroundings->d[dy+1][dx+1]);
                 // Decay toward equilibrium, and assign to new cell location
                 if(blocked->d[y+dy][x+dx]) {
                     // Reflected because blocked, also OMEGA = 1
