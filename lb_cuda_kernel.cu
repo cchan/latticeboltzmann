@@ -73,8 +73,20 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
     int y = blockIdx.y * blockDim.y + threadIdx.y;
     int x = blockIdx.x * blockDim.x + threadIdx.x;
 
+    // Stream first
+    cell_t<float> cell;
+    #pragma unroll
+    for(int dy = -1; dy <= 1; dy ++) {
+        #pragma unroll
+        for(int dx = -1; dx <= 1; dx ++) {
+            if(y-dy < 0 || y-dy >= N || x-dx < 0 || x-dx >= M)
+                cell.d[dy+1][dx+1] = surroundings->d[dy+1][dx+1];
+            else
+                cell.d[dy+1][dx+1] = cells->d[y-dy][x-dx].d[dy+1][dx+1];
+        }
+    }
+
     // Calculate aggregates
-    cell_t<float> cell = cells->d[y][x];
     float s1 = cell.d[0][0] + cell.d[0][1] + cell.d[0][2];
     float s2 = cell.d[1][0] + cell.d[1][1] + cell.d[1][2];
     float s3 = cell.d[2][0] + cell.d[2][1] + cell.d[2][2];
@@ -88,27 +100,19 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
     float v = __saturatef(d);
     frame->d[y][x] = hsv_to_rgb(h, s, v);
 
-    // Collide and stream
+    // Collide
     #pragma unroll
     for(int dy = -1; dy <= 1; dy ++) {
         #pragma unroll
         for(int dx = -1; dx <= 1; dx ++) {
-            if((y+dy < 0) | (y+dy >= N) | (x+dx < 0) | (x+dx >= M)) {
-                // If we're streaming out to surroundings,
-                // there must also be an incoming stream from the surroundings.
-                newcells->d[y][x].d[-dy+1][-dx+1] = surroundings->d[-dy+1][-dx+1];
-            } else {
-                float eu = dy * uy + dx * ux;
-                float eq = d * w[dy+1][dx+1] * (1 + r2 * eu + r2*r2/2*eu*eu - r2/2*(ux*ux + uy*uy));
-                // Decay toward equilibrium, and assign to new cell location
-                if(blocked->d[y+dy][x+dx]) {
-                    // Reflected because blocked, also OMEGA = 1
-                    newcells->d[y+dy][x+dx].d[-dy+1][-dx+1] = cell.d[dy+1][dx+1];
-                } else {
-                    // Normal
-                    newcells->d[y+dy][x+dx].d[ dy+1][ dx+1] = (cell.d[dy+1][dx+1] - eq) * OMEGA + eq;
-                }
-            }
+            float eu = dy * uy + dx * ux;
+            float eq = d * w[dy+1][dx+1] * (1 + r2 * eu + r2*r2/2*eu*eu - r2/2*(ux*ux + uy*uy));
+
+            // Is it blocked? (sizeof bool should == sizeof char)
+            char b = (char)blocked->d[y+dy][x+dx];
+            // Reflect when blocked, and OMEGA = 1 (no collisions)
+            // Otherwise decay toward equilibrium (i.e. collisions) according to OMEGA
+            newcells->d[y][x].d[(1-2*b)*dy+1][(1-2*b)*dx+1] = (cell.d[dy+1][dx+1] - eq) * (OMEGA+(1-OMEGA)*b) + eq;
         }
     }
 }
