@@ -39,7 +39,9 @@ u_insides = [0,0.1]
 def isBlocked(y, x):
   #return (10 <= x < M-10 and 10 <= y < N-10) and not \
   #       (13 <= x < M-13 and 10 <= y < N-13)
-  return (x - N/2) ** 2 + (y - N/2) ** 2 <= (N/16)**2
+  return (x - N/2) ** 2 + (y - N/2) ** 2 <= (N/16)**2 \
+      or (x - N/2) ** 2 + (y - N/3) ** 2 <= (N/16)**2 \
+      or (x - N)   ** 4 + (y - 3*N/5)**4 <= (N/9)**4
   #return np.logical_and(np.abs(x - N/2) <= N/9, np.abs(y - N/2) <= N/9)
 isBlocked = np.vectorize(isBlocked)
 
