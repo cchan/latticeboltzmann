@@ -61,17 +61,19 @@ struct grid_t {
     T d[N][M];
 };
 
-
-
-extern "C" {
-__global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uchar3>* frame, const grid_t<cell_t<float>>* cells,
-                                     const grid_t<bool>* blocked, const cell_t<float>* surroundings) {
+template <bool display>
+__device__ void fused_collide_stream_template(grid_t<cell_t<float>>* newcells, grid_t<uchar3>* frame, const grid_t<cell_t<float>>* cells,
+                                             const grid_t<bool>* blocked, const cell_t<float>* surroundings) {
     //assert(gridDim.z * blockDim.z == 1);
     //assert(gridDim.y * blockDim.y == N);
     //assert(gridDim.x * blockDim.x == M);
 
     for(int y = 0; y < N; y++) {
     //int y = blockIdx.y * blockDim.y + threadIdx.y;
+    // Block-linear cudaArray vs texture caching????
+    // also we should have [3][3][N][M] instead - cell_t<grid_t<float>>
+    // actually maybe it would be best if we had none of the above - use a rotated matrix so memory reads are always coalesced?
+      // makes it harder to display but we're rarely doing that, 1 in 100 frames.
     int x = blockIdx.x * blockDim.x + threadIdx.x;
 
     // Stream first
@@ -96,10 +98,12 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
     float ux = (cell.d[0][2] + cell.d[1][2] + cell.d[2][2] - cell.d[0][0] - cell.d[1][0] - cell.d[2][0])/d; // X component of average velocity
 
     // Display the frame
-    float h = atan2f(uy, ux) + PI;
-    float s = __saturatef(1000 * sqrtf(ux*ux+uy*uy));
-    float v = __saturatef(d);
-    frame->d[y][x] = hsv_to_rgb(h, s, v);
+    if(display) {
+      float h = atan2f(uy, ux) + PI;
+      float s = __saturatef(1000 * sqrtf(ux*ux+uy*uy));
+      float v = __saturatef(d);
+      frame->d[y][x] = hsv_to_rgb(h, s, v);
+    }
 
     // Collide
     #pragma unroll
@@ -118,5 +122,14 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
     }
     }
 }
-}
 
+extern "C" {
+__global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, const grid_t<cell_t<float>>* cells,
+                                     const grid_t<bool>* blocked, const cell_t<float>* surroundings) {
+    fused_collide_stream_template<false>(newcells, NULL, cells, blocked, surroundings);
+}
+__global__ void fused_collide_stream_display(grid_t<cell_t<float>>* newcells, grid_t<uchar3>* frame, const grid_t<cell_t<float>>* cells,
+                                     const grid_t<bool>* blocked, const cell_t<float>* surroundings) {
+    fused_collide_stream_template<true>(newcells, frame, cells, blocked, surroundings);
+}
+}

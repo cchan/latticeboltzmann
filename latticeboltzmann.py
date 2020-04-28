@@ -92,8 +92,10 @@ with open("lb_cuda_kernel.cu", "r") as cu:
       #define M {M}
       #define OMEGA {OMEGA}f
     """ + cu.read(), no_extern_c=1, options=['--use_fast_math', '-O3', '-Xptxas', '-O3,-v'])
+fused_collide_stream_display = mod.get_function("fused_collide_stream_display")
+fused_collide_stream_display.prepare("PPPPP")
 fused_collide_stream = mod.get_function("fused_collide_stream")
-fused_collide_stream.prepare("PPPPP")
+fused_collide_stream.prepare("PPPP")
 
 cells = np.where(np.expand_dims(blocked,-1), np.array(0,ndmin=3,dtype=dtype), np.array(insides, ndmin=3, dtype=dtype)) # cells should have k as its first dimension for cache efficiency
 stream(cells)
@@ -134,19 +136,22 @@ try:
     # np.nan_to_num(u, copy=False) # Is this a bad hack? if p == 0 (i.e. blocked) then we want u to be zero.
 
     # Fused version
-    fused_collide_stream.prepared_async_call((N//32, 1, 1), (32, 1, 1), stream1,
-      newcells_gpu, frame1_gpu, cells_gpu, blocked_gpu, surroundings_gpu)
     if iter % 100 == 0:
+      fused_collide_stream_display.prepared_async_call((N//32, 1, 1), (32, 1, 1), stream1,
+        newcells_gpu, frame1_gpu, cells_gpu, blocked_gpu, surroundings_gpu)
       if a1 is not None:
         a1.join()
       drv.memcpy_dtoh_async(frame1, frame1_gpu, stream=stream1)
       a1 = Thread(target=appendData, args=(frame1, stream1))
       a1.start()
+    else:
+      fused_collide_stream.prepared_async_call((M//16, N//32, 1), (16, 32, 1), stream1,
+        newcells_gpu, cells_gpu, blocked_gpu, surroundings_gpu)
 
     newcells_gpu, cells_gpu = cells_gpu, newcells_gpu
     frame1, frame2 = frame2, frame1
     frame1_gpu, frame2_gpu = frame2_gpu, frame1_gpu
-    stream1, stream2 = stream2, stream1
+    stream1, stream2 = stream2, stream1 # is this a bad idea? bc technically consecutive iterations do depend on each other
     a1, a2 = a2, a1
 
     # # Display density
