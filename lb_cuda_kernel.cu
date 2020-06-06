@@ -70,7 +70,8 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
     //assert(gridDim.y * blockDim.y == N);
     //assert(gridDim.x * blockDim.x == M);
 
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    for(int y = 0; y < N; y++) {
+    //int y = blockIdx.y * blockDim.y + threadIdx.y;
     int x = blockIdx.x * blockDim.x + threadIdx.x;
 
     // Calculate aggregates
@@ -112,6 +113,7 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
                 }
             }
         }
+    }
     }
 }
 }
