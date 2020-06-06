@@ -70,7 +70,8 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
     //assert(gridDim.y * blockDim.y == N);
     //assert(gridDim.x * blockDim.x == M);
 
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    for(int y = 0; y < N; y++) {
+    //int y = blockIdx.y * blockDim.y + threadIdx.y;
     int x = blockIdx.x * blockDim.x + threadIdx.x;
 
     // Stream first
@@ -114,6 +115,7 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
             // Otherwise decay toward equilibrium (i.e. collisions) according to OMEGA
             newcells->d[y][x].d[(1-2*b)*dy+1][(1-2*b)*dx+1] = (cell.d[dy+1][dx+1] - eq) * (OMEGA+(1-OMEGA)*b) + eq;
         }
+    }
     }
 }
 }
