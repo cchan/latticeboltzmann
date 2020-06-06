@@ -117,11 +117,13 @@ def appendData(frame, stream):
   stream.synchronize()
   video.append_data(frame)
 
+prev_time = time.time()
 try:
   for iter in range(25000):#count():
-    if iter % 10 == 0:
-      sys.stdout.write(str(iter)+' ')
-      sys.stdout.flush()
+    if iter % 1000 == 999:
+      curr_time = time.time()
+      print((curr_time - prev_time) * 1000, "us per iteration")
+      prev_time = curr_time
 
     # # Get the total density and net velocity for each cell
     # p = np.sum(cells, axis=2) # total density in this cell
