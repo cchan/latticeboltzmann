@@ -133,7 +133,7 @@ try:
 
     # Fused version
     fused_collide_stream.prepared_async_call((M//16, N//32, 1), (16, 32, 1), stream1,
-      newcells_gpu, frame1_gpu, cells_gpu, blocked_gpu, surroundings_gpu)
+      newcells_gpu, frame1_gpu if iter % 100 == 0 else 0, cells_gpu, blocked_gpu, surroundings_gpu)
     if iter % 100 == 0:
       if a1 is not None:
         a1.join()

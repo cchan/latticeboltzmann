@@ -83,10 +83,12 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
     float ux = (cell.d[0][2] + cell.d[1][2] + cell.d[2][2] - cell.d[0][0] - cell.d[1][0] - cell.d[2][0])/d; // X component of average velocity
 
     // Display the frame
-    float h = atan2f(uy, ux) + PI;
-    float s = __saturatef(1000 * sqrtf(ux*ux+uy*uy));
-    float v = __saturatef(d);
-    frame->d[y][x] = hsv_to_rgb(h, s, v);
+    if (frame) {
+        float h = atan2f(uy, ux) + PI;
+        float s = __saturatef(1000 * sqrtf(ux*ux+uy*uy));
+        float v = __saturatef(d);
+        frame->d[y][x] = hsv_to_rgb(h, s, v);
+    }
 
     // Collide and stream
     #pragma unroll
