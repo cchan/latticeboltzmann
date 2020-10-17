@@ -64,7 +64,7 @@ struct grid_t {
 
 
 extern "C" {
-__global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uchar3>* frame, const grid_t<cell_t<float>>* cells,
+__global__ void fused_collide_stream(cell_t<grid_t<float>>* newcells, grid_t<uchar3>* frame, const cell_t<grid_t<float>>* cells,
                                      const grid_t<bool>* blocked, const cell_t<float>* surroundings) {
     //assert(gridDim.z * blockDim.z == 1);
     //assert(gridDim.y * blockDim.y == N);
@@ -75,7 +75,8 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
     int x = blockIdx.x * blockDim.x + threadIdx.x;
 
     // Calculate aggregates
-    cell_t<float> cell = cells->d[y][x];
+    cell_t<float> cell;
+    for(int dy = 0; dy < 3; dy ++) for(int dx = 0; dx < 3; dx ++) cell.d[dy][dx] = cells->d[dy][dx].d[y][x];
     float s1 = cell.d[0][0] + cell.d[0][1] + cell.d[0][2];
     float s2 = cell.d[1][0] + cell.d[1][1] + cell.d[1][2];
     float s3 = cell.d[2][0] + cell.d[2][1] + cell.d[2][2];
@@ -99,17 +100,17 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
             if((y+dy < 0) | (y+dy >= N) | (x+dx < 0) | (x+dx >= M)) {
                 // If we're streaming out to surroundings,
                 // there must also be an incoming stream from the surroundings.
-                newcells->d[y][x].d[-dy+1][-dx+1] = surroundings->d[-dy+1][-dx+1];
+                newcells->d[-dy+1][-dx+1].d[y][x] = surroundings->d[-dy+1][-dx+1];
             } else {
                 float eu = dy * uy + dx * ux;
                 float eq = d * w[dy+1][dx+1] * (1 + r2 * eu + r2*r2/2*eu*eu - r2/2*(ux*ux + uy*uy));
                 // Decay toward equilibrium, and assign to new cell location
                 if(blocked->d[y+dy][x+dx]) {
                     // Reflected because blocked, also OMEGA = 1
-                    newcells->d[y+dy][x+dx].d[-dy+1][-dx+1] = cell.d[dy+1][dx+1];
+                    newcells->d[-dy+1][-dx+1].d[y+dy][x+dx] = cell.d[dy+1][dx+1];
                 } else {
                     // Normal
-                    newcells->d[y+dy][x+dx].d[ dy+1][ dx+1] = (cell.d[dy+1][dx+1] - eq) * OMEGA + eq;
+                    newcells->d[ dy+1][ dx+1].d[y+dy][x+dx] = (cell.d[dy+1][dx+1] - eq) * OMEGA + eq;
                 }
             }
         }
