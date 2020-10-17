@@ -58,10 +58,34 @@ struct cell_t {
 
 template<typename T>
 struct grid_t {
-    T d[N][M];
+    T d[N*M];
 };
 
+__device__ int morton(int y, int x) {
+    // Interleave lower 16 bits of x and y, so the bits of x
+    // are in the even positions and bits from y in the odd;
+    // x and y must initially be less than 65536.
 
+    static const unsigned int B[] = {0x55555555, 0x33333333, 0x0F0F0F0F, 0x00FF00FF};
+
+    y = (y | (y << 8)) & B[3];
+    y = (y | (y << 4)) & B[2];
+    y = (y | (y << 2)) & B[1];
+    y = (y | (y << 1)) & B[0];
+
+    x = (x | (x << 8)) & B[3];
+    x = (x | (x << 4)) & B[2];
+    x = (x | (x << 2)) & B[1];
+    x = (x | (x << 1)) & B[0];
+
+    return x | (y << 1);
+}
+
+// NOTE: only dy, dx in {-1, 0, 1} supported!
+__device__ int mortonmove(int i, int dy, int dx) {
+    return (((i | 0xAAAAAAAA) & 0x55555555 + dx) & 0x55555555)
+         | (((i | 0x55555555) & 0xAAAAAAAA + dy) & 0xAAAAAAAA);
+}
 
 extern "C" {
 __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uchar3>* frame, const grid_t<cell_t<float>>* cells,
@@ -72,9 +96,10 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
 
     int y = blockIdx.y * blockDim.y + threadIdx.y;
     int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int i = morton(y, x);
 
     // Calculate aggregates
-    cell_t<float> cell = cells->d[y][x];
+    cell_t<float> cell = cells->d[i];
     float s1 = cell.d[0][0] + cell.d[0][1] + cell.d[0][2];
     float s2 = cell.d[1][0] + cell.d[1][1] + cell.d[1][2];
     float s3 = cell.d[2][0] + cell.d[2][1] + cell.d[2][2];
@@ -87,31 +112,35 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
         float h = atan2f(uy, ux) + PI;
         float s = __saturatef(1000 * sqrtf(ux*ux+uy*uy));
         float v = __saturatef(d);
-        frame->d[y][x] = hsv_to_rgb(h, s, v);
+        frame->d[y * gridDim.x * blockDim.x + x] = hsv_to_rgb(h, s, v);
     }
 
     // Collide and stream
+    int zrow = morton(y - 1, x - 1);
     #pragma unroll
     for(int dy = -1; dy <= 1; dy ++) {
+        int znew = zrow;
         #pragma unroll
         for(int dx = -1; dx <= 1; dx ++) {
             if((y+dy < 0) | (y+dy >= N) | (x+dx < 0) | (x+dx >= M)) {
                 // If we're streaming out to surroundings,
                 // there must also be an incoming stream from the surroundings.
-                newcells->d[y][x].d[-dy+1][-dx+1] = surroundings->d[-dy+1][-dx+1];
+                newcells->d[i].d[-dy+1][-dx+1] = surroundings->d[-dy+1][-dx+1];
             } else {
                 float eu = dy * uy + dx * ux;
                 float eq = d * w[dy+1][dx+1] * (1 + r2 * eu + r2*r2/2*eu*eu - r2/2*(ux*ux + uy*uy));
                 // Decay toward equilibrium, and assign to new cell location
-                if(blocked->d[y+dy][x+dx]) {
+                if(blocked->d[znew]) {
                     // Reflected because blocked, also OMEGA = 1
-                    newcells->d[y+dy][x+dx].d[-dy+1][-dx+1] = cell.d[dy+1][dx+1];
+                    newcells->d[znew].d[-dy+1][-dx+1] = cell.d[dy+1][dx+1];
                 } else {
                     // Normal
-                    newcells->d[y+dy][x+dx].d[ dy+1][ dx+1] = (cell.d[dy+1][dx+1] - eq) * OMEGA + eq;
+                    newcells->d[znew].d[ dy+1][ dx+1] = (cell.d[dy+1][dx+1] - eq) * OMEGA + eq;
                 }
             }
+            znew = (((znew | 0b10101010) + 1) & 0b01010101) | (znew & 0b10101010);
         }
+        zrow = (((zrow | 0b01010101) + 1) & 0b10101010) | (zrow & 0b01010101);
     }
 }
 }

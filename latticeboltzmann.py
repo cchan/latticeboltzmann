@@ -29,8 +29,8 @@ assert((np.sum(e, axis=0) == [0, 0]).all())
 e_f = np.asarray(e, dtype=dtype)
 
 # Configuration.
-N = 2160 # rows (MUST BE DIVISIBLE BY blockDim.y)
-M = 3840 # columns (MUST BE DIVISIBLE BY blockDim.x)
+N = 2048 # rows (MUST BE DIVISIBLE BY blockDim.y)
+M = 4096 # columns (MUST BE DIVISIBLE BY blockDim.x)
 OMEGA = 0.00000000000001 # affects viscosity (0 is completely viscous, 1 is zero viscosity)
 p_ambient = 100 # density
 u_ambient = [0.2, 0] # velocity
