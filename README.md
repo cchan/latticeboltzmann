@@ -19,10 +19,10 @@ Older version screenshot (top is density, bottom is direction field):
 
 My setup:
 - AMD Ryzen 3700x
-- Nvidia GeForce RTX 2070 with drivers 440.59 and CUDA 10.2
-- Ubuntu 18.04
+- Nvidia GeForce RTX 2070 with drivers 460.20 and CUDA 11.2
+- Ubuntu 20.04 on WSL
 - Python 3.7.4 using conda
-I suspect but cannot test that this will work with much earlier versions / lower specs.
+I suspect but cannot test that this will work with much earlier versions / lower specs. (Was previously on 18.04 pure linux, 440.59, 10.2)
 
 Install pycuda from source with `./configure.py --cuda-enable-gl`
 
@@ -47,6 +47,10 @@ First allow NV usage: `echo 'options nvidia "NVreg_RestrictProfilingToAdminUsers
 Then run `nv-nsight-cu-cli --target-processes all python latticeboltzmann.py`. A few seconds of samples will do.
 
 `nvvp` is also nice, but you need to `sudo apt install openjdk-8-jdk` then `nvvp -vm /usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java`.
+
+### Notes on overclocking:
+Using MSI Afterburner, I can get a +200MHz core overclock on my 2070, yielding a +10% performance boost.
+Overclocking the memory has much smaller gains; +1200MHz overclock yields an additional +2% performance boost.
 
 
 ## Future directions
