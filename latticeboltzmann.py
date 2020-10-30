@@ -29,19 +29,25 @@ assert((np.sum(e, axis=0) == [0, 0]).all())
 e_f = np.asarray(e, dtype=dtype)
 
 # Configuration.
-N = 2160 # rows (MUST BE DIVISIBLE BY blockDim.y)
-M = 3840 # columns (MUST BE DIVISIBLE BY blockDim.x)
+N = 2160
+M = 3840
 OMEGA = 0.00000000000001 # affects viscosity (0 is completely viscous, 1 is zero viscosity)
 p_ambient = 100 # density
-u_ambient = [0, 0.05] # velocity - higher values become more unstable
+u_ambient = [0, 0.1] # velocity - higher values become more unstable
 p_insides = p_ambient
-u_insides = [0, 0.05]
+u_insides = [0, 0.1]
 def isBlocked(y, x):
   #return (10 <= x < M-10 and 10 <= y < N-10) and not \
   #       (13 <= x < M-13 and 10 <= y < N-13)
   return (x - N/4) ** 2 + (y - N/2) ** 2 <= (N/16)**2 or \
-         (x - N/2) ** 2 + (y - N/4) ** 2 <= (N/9)**2 or \
-         (x - N/2) ** 2 + (y - 3*N/4) ** 2 <= (N/25)**2
+         (x - N/2) ** 2 + (y - N/3) ** 2 <= (N/9)**2 or \
+         (x - N/2) ** 2 + (y - 2*N/3) ** 2 <= (N/25)**2 or \
+         (x - N) ** 2 + (y - 2*N/5) ** 2 <= (N/144)**2 or \
+         (x - N) ** 2 + (y - 3*N/5) ** 2 <= (N/144)**2 or \
+         (x - 3*N/2) ** 2 + (y - 2*N/5) ** 2 <= (N/144)**2 or \
+         (x - 3*N/2) ** 2 + (y - 3*N/5) ** 2 <= (N/144)**2 or \
+         (x - 2*N) ** 2 + (y - 2*N/5) ** 2 <= (N/144)**2 or \
+         (x - 2*N) ** 2 + (y - 3*N/5) ** 2 <= (N/144)**2
 isBlocked = np.vectorize(isBlocked)
 
 video = imageio.get_writer('./latticeboltzmann.mp4', fps=60)
@@ -135,7 +141,7 @@ try:
     # Fused version
     fused_collide_stream.prepared_async_call((math.ceil(M/30), 1, 1), (32, 1, 1), stream1,
       newcells_gpu, frame1_gpu if iter % 100 == 0 else 0, cells_gpu, blocked_gpu, surroundings_gpu)
-    if iter % 100 == 0:
+    if iter % 200 == 0:
       if a1 is not None:
         a1.join()
       drv.memcpy_dtoh_async(frame1, frame1_gpu, stream=stream1)
