@@ -33,14 +33,15 @@ N = 2160 # rows (MUST BE DIVISIBLE BY blockDim.y)
 M = 3840 # columns (MUST BE DIVISIBLE BY blockDim.x)
 OMEGA = 0.00000000000001 # affects viscosity (0 is completely viscous, 1 is zero viscosity)
 p_ambient = 100 # density
-u_ambient = [0.2, 0] # velocity
+u_ambient = [0, 0.05] # velocity - higher values become more unstable
 p_insides = p_ambient
-u_insides = [0,0.1]
+u_insides = [0, 0.05]
 def isBlocked(y, x):
   #return (10 <= x < M-10 and 10 <= y < N-10) and not \
   #       (13 <= x < M-13 and 10 <= y < N-13)
-  return (x - N/2) ** 2 + (y - N/2) ** 2 <= (N/16)**2
-  #return np.logical_and(np.abs(x - N/2) <= N/9, np.abs(y - N/2) <= N/9)
+  return (x - N/4) ** 2 + (y - N/2) ** 2 <= (N/16)**2 or \
+         (x - N/2) ** 2 + (y - N/4) ** 2 <= (N/9)**2 or \
+         (x - N/2) ** 2 + (y - 3*N/4) ** 2 <= (N/25)**2
 isBlocked = np.vectorize(isBlocked)
 
 video = imageio.get_writer('./latticeboltzmann.mp4', fps=60)
@@ -89,11 +90,11 @@ with open("lb_cuda_kernel.cu", "r") as cu:
       #define N {N}
       #define M {M}
       #define OMEGA {OMEGA}f
-    """ + cu.read(), no_extern_c=1, options=['--use_fast_math', '-O3', '-Xptxas', '-O3,-v'])
+    """ + cu.read(), no_extern_c=1, options=['--use_fast_math', '-O3', '-Xptxas', '-O3,-v', '-arch', 'sm_75', '--extra-device-vectorization', '--restrict'])
 fused_collide_stream = mod.get_function("fused_collide_stream")
 fused_collide_stream.prepare("PPPPP")
 
-cells = np.where(np.expand_dims(blocked,-1), np.array(0,ndmin=3,dtype=dtype), np.array(insides, ndmin=3, dtype=dtype)) # cells should have k as its first dimension for cache efficiency
+cells = np.where(np.expand_dims(blocked,-1), np.array(insides,ndmin=3,dtype=dtype), np.array(insides, ndmin=3, dtype=dtype)) # cells should have k as its first dimension for cache efficiency
 stream(cells)
 reflect(cells)
 cells = np.where(np.expand_dims(blocked,-1), cells, np.array(insides, ndmin=3))
@@ -119,7 +120,7 @@ def appendData(frame, stream):
 
 prev_time = time.time()
 try:
-  for iter in range(25000):#count():
+  for iter in range(250000):#count():
     if iter % 1000 == 999:
       curr_time = time.time()
       print((curr_time - prev_time) * 1000, "us per iteration")
@@ -132,7 +133,7 @@ try:
     # np.nan_to_num(u, copy=False) # Is this a bad hack? if p == 0 (i.e. blocked) then we want u to be zero.
 
     # Fused version
-    fused_collide_stream.prepared_async_call((M//32, 1, 1), (32, 1, 1), stream1,
+    fused_collide_stream.prepared_async_call((math.ceil(M/30), 1, 1), (32, 1, 1), stream1,
       newcells_gpu, frame1_gpu if iter % 100 == 0 else 0, cells_gpu, blocked_gpu, surroundings_gpu)
     if iter % 100 == 0:
       if a1 is not None:
@@ -158,6 +159,6 @@ try:
 
 except KeyboardInterrupt:
   print("Done")
-  a1.join()
-  a2.join()
+  if a1 is not None: a1.join()
+  if a2 is not None: a2.join()
   video.close()

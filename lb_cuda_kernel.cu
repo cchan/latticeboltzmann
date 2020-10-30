@@ -1,3 +1,12 @@
+#ifndef N
+#define N 2160
+#endif
+#ifndef M
+#define M 3840
+#endif
+#ifndef OMEGA
+#define OMEGA 0.00000000000001f
+#endif
 #define PI 3.141592653589f
 
 // Adapted from https://github.com/hellopatrick/cuda-samples/blob/master/hsv/kernel.cu
@@ -70,50 +79,100 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
     //assert(gridDim.y * blockDim.y == N);
     //assert(gridDim.x * blockDim.x == M);
 
-    for(int y = 0; y < N; y++) {
     //int y = blockIdx.y * blockDim.y + threadIdx.y;
     int x = blockIdx.x * blockDim.x + threadIdx.x;
+    bool isHalo = (x%32 == 0 || x%32 == 31);
+    x -= (x/32) * 2 + 1;
+    bool isEdge = (x < 0 || x >= M);
+    isHalo = isEdge || isHalo;
+
+    cell_t<float> surr = *surroundings;
+    cell_t<float> prev = surr, curr = surr, next, newcurr;
+
+    for(int y = 0; y < N + 1; y++) {
+
+    // cell_t<float> asdf;
+    // asdf.d[0][0] = 0; asdf.d[0][1] = 0; asdf.d[0][2] = 0;
+    // asdf.d[1][0] = 0; asdf.d[1][1] = 0; asdf.d[1][2] = 100;
+    // asdf.d[2][0] = 0; asdf.d[2][1] = 0; asdf.d[2][2] = 0;
 
     // Calculate aggregates
-    cell_t<float> cell = cells->d[y][x];
-    float s1 = cell.d[0][0] + cell.d[0][1] + cell.d[0][2];
-    float s2 = cell.d[1][0] + cell.d[1][1] + cell.d[1][2];
-    float s3 = cell.d[2][0] + cell.d[2][1] + cell.d[2][2];
-    float d = s1 + s2 + s3; // Total density
+    if(isEdge || y >= N)
+        next = surr;
+    else
+        next = cells->d[y][x];
+    float s1 = next.d[0][0] + next.d[0][1] + next.d[0][2];
+    float s2 = next.d[1][0] + next.d[1][1] + next.d[1][2];
+    float s3 = next.d[2][0] + next.d[2][1] + next.d[2][2];
+    float d = s1 + s2 + s3 + 0.0001; // Total density (plus a fudge factor for numerical stability)
+                            // Alternative numerical stability method is to prevent any values from going negative.
     float uy = (s3 - s1)/d; // Y component of average velocity
-    float ux = (cell.d[0][2] + cell.d[1][2] + cell.d[2][2] - cell.d[0][0] - cell.d[1][0] - cell.d[2][0])/d; // X component of average velocity
+    float ux = (next.d[0][2] + next.d[1][2] + next.d[2][2] - next.d[0][0] - next.d[1][0] - next.d[2][0])/d; // X component of average velocity
+    // float mag = uy*uy + ux*ux;
+    // uy /= mag;
+    // ux /= mag;
 
     // Display the frame
-    if (frame) {
+    if (frame && !isHalo && y > 0) {
         float h = atan2f(uy, ux) + PI;
         float s = __saturatef(1000 * sqrtf(ux*ux+uy*uy));
         float v = __saturatef(d);
-        frame->d[y][x] = hsv_to_rgb(h, s, v);
+        frame->d[y-1][x] = hsv_to_rgb(h, s, v);
     }
 
-    // Collide and stream
-    #pragma unroll
-    for(int dy = -1; dy <= 1; dy ++) {
+    // Compute collide
+    if(y > 0 && !blocked->d[y-1][x+1]) {
+        float c = 1 - r2/2*(ux*ux + uy*uy);
         #pragma unroll
-        for(int dx = -1; dx <= 1; dx ++) {
-            if((y+dy < 0) | (y+dy >= N) | (x+dx < 0) | (x+dx >= M)) {
-                // If we're streaming out to surroundings,
-                // there must also be an incoming stream from the surroundings.
-                newcells->d[y][x].d[-dy+1][-dx+1] = surroundings->d[-dy+1][-dx+1];
-            } else {
-                float eu = dy * uy + dx * ux;
-                float eq = d * w[dy+1][dx+1] * (1 + r2 * eu + r2*r2/2*eu*eu - r2/2*(ux*ux + uy*uy));
-                // Decay toward equilibrium, and assign to new cell location
-                if(blocked->d[y+dy][x+dx]) {
-                    // Reflected because blocked, also OMEGA = 1
-                    newcells->d[y+dy][x+dx].d[-dy+1][-dx+1] = cell.d[dy+1][dx+1];
-                } else {
-                    // Normal
-                    newcells->d[y+dy][x+dx].d[ dy+1][ dx+1] = (cell.d[dy+1][dx+1] - eq) * OMEGA + eq;
-                }
+        for(int dy = 0; dy <= 2; dy ++) {
+            #pragma unroll
+            for(int dx = 0; dx <= 2; dx ++) {
+                float eu = (dy-1) * uy + (dx-1) * ux;
+                float eq = d * w[dy][dx] * (c + r2 * eu * (1 + r2/2*eu));
+                next.d[dy][dx] = (next.d[dy][dx] - eq) * OMEGA + eq;
             }
         }
     }
+
+    // Exchange adjacent through shuffles
+    newcurr.d[0][0] = __shfl_down_sync(0xffffffff, next.d[0][0], 1);
+    newcurr.d[0][1] = __shfl_down_sync(0xffffffff, curr.d[0][1], 1);
+    newcurr.d[0][2] = __shfl_down_sync(0xffffffff, prev.d[0][2], 1);
+    newcurr.d[1][0] = next.d[1][0];
+    newcurr.d[1][1] = curr.d[1][1];
+    newcurr.d[1][2] = prev.d[1][2];
+    newcurr.d[2][0] = __shfl_up_sync(0xffffffff, next.d[2][0], 1);
+    newcurr.d[2][1] = __shfl_up_sync(0xffffffff, curr.d[2][1], 1);
+    newcurr.d[2][2] = __shfl_up_sync(0xffffffff, prev.d[2][2], 1);
+
+    if(y > 0 && blocked->d[y-1][x]) {
+        {
+            float tmp = newcurr.d[0][0];
+            newcurr.d[0][0] = newcurr.d[2][2];
+            newcurr.d[2][2] = tmp;
+        }
+        {
+            float tmp = newcurr.d[0][1];
+            newcurr.d[0][1] = newcurr.d[2][1];
+            newcurr.d[2][1] = tmp;
+        }
+        {
+            float tmp = newcurr.d[0][2];
+            newcurr.d[0][2] = newcurr.d[2][0];
+            newcurr.d[2][0] = tmp;
+        }
+        {
+            float tmp = newcurr.d[1][0];
+            newcurr.d[1][0] = newcurr.d[1][2];
+            newcurr.d[1][2] = tmp;
+        }
+    }
+
+    if(!isHalo && x >= 0 && x < M && y > 0) {
+        newcells->d[y-1][x] = newcurr; // Geez this is 100% of the gap between where we are (2150us) and memory bandwidth bottleneck (500us)
+    }
+    prev = curr;
+    curr = next;
     }
 }
 }
