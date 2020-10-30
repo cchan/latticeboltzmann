@@ -71,14 +71,14 @@ struct grid_t {
 };
 
 template<typename T>
-__device__ __forceinline__ T swap(T &a, T &b) {
+__device__ __forceinline__ void swap(T &a, T &b) {
     T tmp = a;
     a = b;
     b = tmp;
 }
 
-extern "C" {
-__global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uchar3>* frame, const grid_t<cell_t<float>>* cells,
+template<bool shouldDisplay>
+__device__ void fcs(grid_t<cell_t<float>>* newcells, grid_t<uchar3>* frame, const grid_t<cell_t<float>>* cells,
                                      const grid_t<bool>* blocked, const cell_t<float>* surroundings) {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     bool isHalo = (x%32 == 0 || x%32 == 31);
@@ -98,18 +98,6 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
                                          // Alternative numerical stability method is to prevent any values from going negative.
         float uy = (s3 - s1)/d; // Y component of average velocity
         float ux = (next.d[0][2] + next.d[1][2] + next.d[2][2] - next.d[0][0] - next.d[1][0] - next.d[2][0])/d; // X component of average velocity
-
-        // Exchange adjacent through shuffles
-        cell_t<float> newcurr;
-        newcurr.d[0][0] = __shfl_down_sync(0xffffffff, next.d[0][0], 1);
-        newcurr.d[0][1] = __shfl_down_sync(0xffffffff, curr.d[0][1], 1);
-        newcurr.d[0][2] = __shfl_down_sync(0xffffffff, prev.d[0][2], 1);
-        newcurr.d[1][0] = next.d[1][0];
-        newcurr.d[1][1] = curr.d[1][1];
-        newcurr.d[1][2] = prev.d[1][2];
-        newcurr.d[2][0] = __shfl_up_sync(0xffffffff, next.d[2][0], 1);
-        newcurr.d[2][1] = __shfl_up_sync(0xffffffff, curr.d[2][1], 1);
-        newcurr.d[2][2] = __shfl_up_sync(0xffffffff, prev.d[2][2], 1);
 
         prev = curr;
         curr = next;
@@ -132,12 +120,14 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
         // uy /= mag;
         // ux /= mag;
 
-        // Display the frame
-        if (frame && !isHalo) {
-            float h = atan2f(uy, ux) + PI;
-            float s = __saturatef(1000 * sqrtf(ux*ux+uy*uy));
-            float v = __saturatef(d);
-            frame->d[y][x] = hsv_to_rgb(h, s, v);
+        if constexpr(shouldDisplay) {
+            // Display the frame
+            if (frame && !isHalo) {
+                float h = atan2f(uy, ux) + PI;
+                float s = __saturatef(1000 * sqrtf(ux*ux+uy*uy));
+                float v = __saturatef(d);
+                frame->d[y][x] = hsv_to_rgb(h, s, v);
+            }
         }
 
         // Compute collide
@@ -169,7 +159,7 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
         prev = curr;
         curr = next;
 
-        if(x >= 0 && x < M) {
+        if(!isEdge) {
             // Reflect the new cell if blocked
             if(blocked->d[y][x]) {
                 swap(newcurr.d[0][0], newcurr.d[2][2]);
@@ -185,5 +175,13 @@ __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uch
         }
     }
 }
+extern "C" {
+    __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uchar3>* frame, const grid_t<cell_t<float>>* cells,
+        const grid_t<bool>* blocked, const cell_t<float>* surroundings) {
+        if(frame)
+            fcs<true>(newcells, frame, cells, blocked, surroundings);
+        else
+            fcs<false>(newcells, frame, cells, blocked, surroundings);
+    }
 }
 
