@@ -1,7 +1,15 @@
 Lattice Boltzmann Method
 ========================
 
+2D lattice boltzmann fluid sim. Achieves just under 5 GLUPS on an RTX 2070, approx. 1/3 of memory bandwidth SOL.
+
+## Nice things to look at
+
 YouTube videos
+
+[![yeet](https://img.youtube.com/vi/7rvzD-67sXk/0.jpg)](https://youtu.be/7rvzD-67sXk)
+
+[![multi object stable vortex street](https://img.youtube.com/vi/H8pB7ErPXnw/0.jpg)](https://youtu.be/H8pB7ErPXnw)
 
 [![vortex street](https://img.youtube.com/vi/Fo-gbRbTyIc/0.jpg)](https://youtu.be/Fo-gbRbTyIc)
 
@@ -64,6 +72,11 @@ Overclocking the memory has much smaller gains; +1200MHz overclock yields an add
   - With distributability
 - [x] PyTorch implementation (cf https://github.com/kobejean/tf-cfd?)
   - Failed, pytorch has a 3-4x slowdown :/
+- CUDA
+  - [ ] Explore better simulation-time memory layouts (morton, tiling, etc. - unlikely that the display layout is the optimal computational layout)
+  - [ ] D2Q21 or similar - kinda equivalent to doing two D2Q9 timesteps in one go.
+  - [ ] D3Q19
+  - [ ] write newcurr directly and get rid of the double buffer
 
 ## Resources
 - http://physics.weber.edu/schroeder/javacourse/LatticeBoltzmann.pdf

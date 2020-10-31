@@ -29,28 +29,39 @@ assert((np.sum(e, axis=0) == [0, 0]).all())
 e_f = np.asarray(e, dtype=dtype)
 
 # Configuration.
-N = 2160
-M = 3840
+import sys
+if len(sys.argv) > 1:
+  from PIL import Image
+  blocked = np.array(Image.open(sys.argv[1]).convert('L')) > 128
+  print(blocked.shape)
+  N = blocked.shape[0]
+  M = blocked.shape[1]
+else:
+  N = 2160
+  M = 3840
+  def isBlocked(y, x):
+    #return (10 <= x < M-10 and 10 <= y < N-10) and not \
+    #       (13 <= x < M-13 and 10 <= y < N-13)
+    return (x - N/4) ** 2 + (y - N/2) ** 2 <= (N/16)**2 or \
+          (x - N/2) ** 2 + (y - N/3) ** 2 <= (N/9)**2 or \
+          (x - N/2) ** 2 + (y - 2*N/3) ** 2 <= (N/25)**2 or \
+          (x - N) ** 2 + (y - 2*N/5) ** 2 <= (N/144)**2 or \
+          (x - N) ** 2 + (y - 3*N/5) ** 2 <= (N/144)**2 or \
+          (x - 3*N/2) ** 2 + (y - 2*N/5) ** 2 <= (N/144)**2 or \
+          (x - 3*N/2) ** 2 + (y - 3*N/5) ** 2 <= (N/144)**2 or \
+          (x - 2*N) ** 2 + (y - 2*N/5) ** 2 <= (N/144)**2 or \
+          (x - 2*N) ** 2 + (y - 3*N/5) ** 2 <= (N/144)**2
+  isBlocked = np.vectorize(isBlocked)
+  blocked = np.fromfunction(isBlocked, (N, M))
+
+video = imageio.get_writer('./latticeboltzmann.mp4', fps=60)
+
+
 OMEGA = 0.00000000000001 # affects viscosity (0 is completely viscous, 1 is zero viscosity)
 p_ambient = 100 # density
 u_ambient = [0, 0.1] # velocity - higher values become more unstable
 p_insides = p_ambient
-u_insides = [0, 0.1]
-def isBlocked(y, x):
-  #return (10 <= x < M-10 and 10 <= y < N-10) and not \
-  #       (13 <= x < M-13 and 10 <= y < N-13)
-  return (x - N/4) ** 2 + (y - N/2) ** 2 <= (N/16)**2 or \
-         (x - N/2) ** 2 + (y - N/3) ** 2 <= (N/9)**2 or \
-         (x - N/2) ** 2 + (y - 2*N/3) ** 2 <= (N/25)**2 or \
-         (x - N) ** 2 + (y - 2*N/5) ** 2 <= (N/144)**2 or \
-         (x - N) ** 2 + (y - 3*N/5) ** 2 <= (N/144)**2 or \
-         (x - 3*N/2) ** 2 + (y - 2*N/5) ** 2 <= (N/144)**2 or \
-         (x - 3*N/2) ** 2 + (y - 3*N/5) ** 2 <= (N/144)**2 or \
-         (x - 2*N) ** 2 + (y - 2*N/5) ** 2 <= (N/144)**2 or \
-         (x - 2*N) ** 2 + (y - 3*N/5) ** 2 <= (N/144)**2
-isBlocked = np.vectorize(isBlocked)
-
-video = imageio.get_writer('./latticeboltzmann.mp4', fps=60)
+u_insides = u_ambient
 
 # distribution of velocities in a single cell at thermal equilibrium
 def getEquilibrium(velocity, density):
@@ -58,12 +69,12 @@ def getEquilibrium(velocity, density):
   return np.expand_dims(density, -1) * w * (1 + r2 * eu + r2**2/2*np.square(eu) - r2/2*np.expand_dims(np.sum(np.square(velocity),axis=-1),-1))
 
 # Initialize to a thermally stable continuous flow field, and set the omega (viscosity) values.
-# Note that isBlocked = True means that omega is 1, so no thermal perturbation occurs before reflection back into the rest of the system.
 surroundings = getEquilibrium(np.array([u_ambient], dtype=dtype), np.array([p_ambient], dtype=dtype))[0]
 assert(np.isclose(sum(surroundings), p_ambient)) # Conservation of mass
 assert(np.isclose(surroundings @ e_f / p_ambient, u_ambient).all()) # Conservation of momentum
 insides = getEquilibrium(np.array([u_insides], dtype=dtype), np.array([p_insides], dtype=dtype))[0]
-blocked = np.fromfunction(isBlocked, (N, M))
+
+# Note that blocked = True means that omega is 1, so no thermal perturbation occurs before reflection back into the rest of the system.
 omega = np.where(np.expand_dims(blocked,-1), np.array(1,ndmin=3), np.array(OMEGA, ndmin=3))
 
 
