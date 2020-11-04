@@ -1,7 +1,7 @@
 Lattice Boltzmann Method
 ========================
 
-2D lattice boltzmann fluid sim. Achieves just under 5 GLUPS on an RTX 2070, approx. 1/3 of memory bandwidth SOL.
+2D lattice boltzmann fluid sim. Achieves 5.2 GLUPS on an RTX 2070, approx. 40% of memory bandwidth SOL. (4k 630Hz!)
 
 ## Nice things to look at
 

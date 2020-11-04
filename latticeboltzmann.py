@@ -150,7 +150,7 @@ try:
     # np.nan_to_num(u, copy=False) # Is this a bad hack? if p == 0 (i.e. blocked) then we want u to be zero.
 
     # Fused version
-    fused_collide_stream.prepared_async_call((math.ceil(M/30), 1, 1), (32, 1, 1), stream1,
+    fused_collide_stream.prepared_async_call((math.ceil(M/30/4), 1, 1), (128, 1, 1), stream1,
       newcells_gpu, frame1_gpu if iter % 100 == 0 else 0, cells_gpu, blocked_gpu, surroundings_gpu)
     if iter % 200 == 0:
       if a1 is not None:
