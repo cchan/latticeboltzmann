@@ -135,6 +135,13 @@ __device__ void fcs(grid_t<cell_t<float>>* newcells, grid_t<uchar3>* frame, cons
         // 4444
         // so every memory load instruction is 1) LDG.E.128.SYS (float4) 2) aligned 3) coalesced
 
+        // Another thing is that according to the Occupancy Calculator the ideal register use is < 40.
+        // This probably doesn't matter given that we're starved at the global memory level, but it's good to note.
+        // An attempt to get some of the useless elements of prev out of registers only resulted in higher register count:
+            // prev0 = curr.d[0][2];
+            // prev1 = curr.d[1][2];
+            // prev2 = curr.d[2][2];
+
         // Calculate aggregates
         if(isEdge || y == N - 1)
             next = surr;
