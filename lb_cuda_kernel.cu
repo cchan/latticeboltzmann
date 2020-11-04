@@ -77,6 +77,16 @@ __device__ __forceinline__ void swap(T &a, T &b) {
     b = tmp;
 }
 
+__device__ __forceinline__ void prefetch_l1 (unsigned int addr)
+{
+  asm volatile(" prefetch.global.L1 [ %1 ];": "=r"(addr) : "r"(addr));
+}
+
+__device__ __forceinline__ void prefetch_l2 (unsigned int addr)
+{
+  asm volatile(" prefetch.global.L2 [ %1 ];": "=r"(addr) : "r"(addr));
+}
+
 template<bool shouldDisplay>
 __device__ void fcs(grid_t<cell_t<float>>* newcells, grid_t<uchar3>* frame, const grid_t<cell_t<float>>* cells,
                                      const grid_t<bool>* blocked, const cell_t<float>* surroundings) {
@@ -96,6 +106,7 @@ __device__ void fcs(grid_t<cell_t<float>>* newcells, grid_t<uchar3>* frame, cons
         float s3 = next.d[2][0] + next.d[2][1] + next.d[2][2];
         float d = s1 + s2 + s3 + 0.0001; // Total density (plus a fudge factor for numerical stability)
                                          // Alternative numerical stability method is to prevent any values from going negative.
+                                         // Consider using half-precision.
         float uy = (s3 - s1)/d; // Y component of average velocity
         float ux = (next.d[0][2] + next.d[1][2] + next.d[2][2] - next.d[0][0] - next.d[1][0] - next.d[2][0])/d; // X component of average velocity
 
@@ -104,6 +115,26 @@ __device__ void fcs(grid_t<cell_t<float>>* newcells, grid_t<uchar3>* frame, cons
     }
 
     for(int y = 0; y < N; y++) {
+        // if(y&3==0)
+        //     prefetch_l1((unsigned int)&cells->d[y+4][x]); // This produces no appreciable benefit. :(
+        // also tried using "nextnext" to get it loaded into registers on the previous iteration, but that didn't seem to help
+        // why wouldn't it hit memory bandwidth then??? is it actually blocked by the latency (32ish cycles?) of loads from l1 to registers?
+        // it could be legitimately compute bottlenecked... but that seems so unlikely given that other sims were able to hit mem bandwidth. Diff arch tho.
+        // no, core overclocking does literally nothing and mem overclocking is basically linear.
+        // ah possibly because it's unaligned / not using LDG.E.128.SYS aligned vectorized loads!
+        // An attempt was previously made to simply expand the struct to 4 floats per row to use only aligned loads but that is -40% performance.
+        // Could possibly interleave 9 128-bit loads, in 1024-bit coalesced chunks, to do four rows at once.
+        // 1111 ... x32
+        // 1111
+        // 1222
+        // 2222
+        // 2233
+        // 3333
+        // 3334
+        // 4444
+        // 4444
+        // so every memory load instruction is 1) LDG.E.128.SYS (float4) 2) aligned 3) coalesced
+
         // Calculate aggregates
         if(isEdge || y == N - 1)
             next = surr;
@@ -113,12 +144,10 @@ __device__ void fcs(grid_t<cell_t<float>>* newcells, grid_t<uchar3>* frame, cons
         float s2 = next.d[1][0] + next.d[1][1] + next.d[1][2];
         float s3 = next.d[2][0] + next.d[2][1] + next.d[2][2];
         float d = s1 + s2 + s3 + 0.0001; // Total density (plus a fudge factor for numerical stability)
-                                         // Alternative numerical stability method is to prevent any values from going negative.
+                                         // Alternative numerical stability method is to prevent any values from going negative, or otherwise normalize.
+        // Adding 10 floating point multiplies here kills performance by ~50%
         float uy = (s3 - s1)/d; // Y component of average velocity
         float ux = (next.d[0][2] + next.d[1][2] + next.d[2][2] - next.d[0][0] - next.d[1][0] - next.d[2][0])/d; // X component of average velocity
-        // float mag = uy*uy + ux*ux;
-        // uy /= mag;
-        // ux /= mag;
 
         if constexpr(shouldDisplay) {
             // Display the frame
