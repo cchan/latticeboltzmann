@@ -1,7 +1,9 @@
 Lattice Boltzmann Method
 ========================
 
-2D lattice boltzmann fluid sim. Achieves 5.2 GLUPS on an RTX 2070, approx. 40% of memory bandwidth SOL. (4k 630Hz!)
+2D lattice boltzmann fluid sim. Achieves 5.7 GLUPS on an RTX 2070, approx. 40% of memory bandwidth SOL.
+
+(Another test yields 4k630Hz)
 
 ## Nice things to look at
 
@@ -37,11 +39,6 @@ Install pycuda from source with `./configure.py --cuda-enable-gl`
 
 ## Benchmarking
 
-This is really fast! I'm able to get 638fps at 3072 x 768. And yet I'm at 9% SM utilization, due to extensive memory stalls - the write pattern is pretty nonlocal so there's probably better ways to do this.
-
-`hyperfine` is nice, from github.com/sharkdp/hyperfine.
-
-
 ### Python profiling:
 Run `python -m cProfile -s cumtime latticeboltzmann.py | less` for perhaps a minute.
 
@@ -57,9 +54,7 @@ Then run `nv-nsight-cu-cli --target-processes all python latticeboltzmann.py`. A
 `nvvp` is also nice, but you need to `sudo apt install openjdk-8-jdk` then `nvvp -vm /usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java`.
 
 ### Notes on overclocking:
-Using MSI Afterburner, I can get a +200MHz core overclock on my 2070, yielding a +10% performance boost.
-Overclocking the memory has much smaller gains; +1200MHz overclock yields an additional +2% performance boost.
-
+Using MSI Afterburner, I can get a +200MHz core overclock on my 2070, yielding almost no performance boost. Overclocking the memory has much larger gains; +1100MHz overclock yields a nearly 20% performance boost.
 
 ## Future directions
 - [x] Implemented in python
