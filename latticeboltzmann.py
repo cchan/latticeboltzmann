@@ -139,8 +139,11 @@ prev_time = time.time()
 try:
   for iter in range(250000):#count():
     if iter % 1000 == 999:
+      # The reason it takes such a short amount of time on the first iteration is that it loads
+      # a huge number of things into the stream and then hits a blocker (stream.synchronize()).
+      # so the first iterations before the first render are always super fast.
       curr_time = time.time()
-      print((curr_time - prev_time) * 1000, "us per iteration")
+      print((curr_time - prev_time) * 1000, "us per iteration / ", N * M / 1000000 / (curr_time - prev_time), "GLUPS / ", N * M / 1000000 * 9 * 4 / (curr_time - prev_time), "GBps", "(iter " + str(iter+1) + ")")
       prev_time = curr_time
 
     # # Get the total density and net velocity for each cell

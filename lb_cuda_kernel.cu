@@ -115,8 +115,8 @@ __device__ void fcs(grid_t<cell_t<float>>* newcells, grid_t<uchar3>* frame, cons
     }
 
     for(int y = 0; y < N; y++) {
-        // if(y&3==0)
-        //     prefetch_l1((unsigned int)&cells->d[y+4][x]); // This produces no appreciable benefit. :(
+        // if(y&31==0)
+        //     prefetch_l2((unsigned int)&cells->d[y+32][x]); // This produces no appreciable benefit. :(
         // also tried using "nextnext" to get it loaded into registers on the previous iteration, but that didn't seem to help
         // why wouldn't it hit memory bandwidth then??? is it actually blocked by the latency (32ish cycles?) of loads from l1 to registers?
         // it could be legitimately compute bottlenecked... but that seems so unlikely given that other sims were able to hit mem bandwidth. Diff arch tho.
@@ -134,10 +134,13 @@ __device__ void fcs(grid_t<cell_t<float>>* newcells, grid_t<uchar3>* frame, cons
         // 4444
         // 4444
         // so every memory load instruction is 1) LDG.E.128.SYS (float4) 2) aligned 3) coalesced
+        // struct coalescing_block {
+        //     float4 a[32], b[32], c[32], d[32], e[32], f[32], g[32], h[32], i[32];
+        // }
 
-        // Another thing is that according to the Occupancy Calculator the ideal register use is < 40.
-        // This probably doesn't matter given that we're starved at the global memory level, but it's good to note.
-        // An attempt to get some of the useless elements of prev out of registers only resulted in higher register count:
+        // Another thing is that according to the Occupancy Calculator the ideal register use is < 64 per thread.
+            // We are currently at 57. Great.
+        // An attempt to get some of the useless elements of prev out of registers didn't do anything.
             // prev0 = curr.d[0][2];
             // prev1 = curr.d[1][2];
             // prev2 = curr.d[2][2];

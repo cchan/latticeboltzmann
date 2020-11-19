@@ -1,7 +1,7 @@
 Lattice Boltzmann Method
 ========================
 
-2D lattice boltzmann fluid sim. Achieves 5.7 GLUPS on an RTX 2070, approx. 40% of memory bandwidth SOL.
+2D lattice boltzmann fluid sim. Achieves 5.7 GLUPS on an RTX 2070, approx. 80% of memory bandwidth SOL.
 
 (Another test yields 4k630Hz)
 
@@ -71,7 +71,7 @@ Using MSI Afterburner, I can get a +200MHz core overclock on my 2070, yielding a
   - [ ] Explore better simulation-time memory layouts (morton, tiling, etc. - unlikely that the display layout is the optimal computational layout)
   - [ ] D2Q21 or similar - kinda equivalent to doing two D2Q9 timesteps in one go.
   - [ ] D3Q19
-  - [ ] write newcurr directly and get rid of the double buffer
+  - [ ] Write newcurr directly and get rid of the double buffer... or maybe this won't help because memory again? Might get some caching benefits though.
 
 ## Resources
 - http://physics.weber.edu/schroeder/javacourse/LatticeBoltzmann.pdf
