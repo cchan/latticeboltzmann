@@ -14,13 +14,18 @@ from pycuda.compiler import SourceModule
 
 dtype = np.float32
 
+if dtype == np.float16:
+  rtol = 1e-2
+else:
+  rtol = 1e-6
+
 # Constants for D2Q9 https://arxiv.org/pdf/0908.4520.pdf # Normalized boltzmann distribution (thermal)
 r2 = 3
 w = np.array([1/36, 1/9, 1/36,
               1/9,  4/9, 1/9,
               1/36, 1/9, 1/36], dtype=dtype)
 assert(np.all(w == np.flip(w, axis=0)))
-assert(math.isclose(sum(w), 1, rel_tol=1e-6))
+assert(math.isclose(sum(w), 1, rel_tol=rtol))
 e = np.array([[-1,-1],[0,-1],[1,-1],
               [-1, 0],[0, 0],[1, 0],
               [-1, 1],[0, 1],[1, 1]])
@@ -70,8 +75,8 @@ def getEquilibrium(velocity, density):
 
 # Initialize to a thermally stable continuous flow field, and set the omega (viscosity) values.
 surroundings = getEquilibrium(np.array([u_ambient], dtype=dtype), np.array([p_ambient], dtype=dtype))[0]
-assert(np.isclose(sum(surroundings), p_ambient)) # Conservation of mass
-assert(np.isclose(surroundings @ e_f / p_ambient, u_ambient).all()) # Conservation of momentum
+assert(np.isclose(sum(surroundings), p_ambient, rtol=rtol)) # Conservation of mass
+assert(np.isclose(surroundings @ e_f / p_ambient, u_ambient, rtol=rtol).all()) # Conservation of momentum
 insides = getEquilibrium(np.array([u_insides], dtype=dtype), np.array([p_insides], dtype=dtype))[0]
 
 # Note that blocked = True means that omega is 1, so no thermal perturbation occurs before reflection back into the rest of the system.
@@ -107,7 +112,7 @@ with open("lb_cuda_kernel.cu", "r") as cu:
       #define N {N}
       #define M {M}
       #define OMEGA {OMEGA}f
-    """ + cu.read(), no_extern_c=1, options=['--use_fast_math', '-O3', '-Xptxas', '-O3,-v', '-arch', 'sm_75', '--extra-device-vectorization', '--restrict'])
+    """ + ("#define half_enable\n" if dtype == np.float16 else "") + cu.read(), no_extern_c=1, options=['--use_fast_math', '-O3', '-Xptxas', '-O3,-v', '-arch', 'sm_75', '--extra-device-vectorization', '--restrict'])
 fused_collide_stream = mod.get_function("fused_collide_stream")
 fused_collide_stream.prepare("PPPPP")
 

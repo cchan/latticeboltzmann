@@ -72,6 +72,7 @@ Using MSI Afterburner, I can get a +200MHz core overclock on my 2070, yielding a
   - [ ] D2Q21 or similar - kinda equivalent to doing two D2Q9 timesteps in one go.
   - [ ] D3Q19
   - [ ] Write newcurr directly and get rid of the double buffer... or maybe this won't help because memory again? Might get some caching benefits though.
+  - [x] Try mixed-precision - implemented; 10% gain at the cost of extreme unphysical viscosity
 
 ## Resources
 - http://physics.weber.edu/schroeder/javacourse/LatticeBoltzmann.pdf

@@ -9,6 +9,14 @@
 #endif
 #define PI 3.141592653589f
 
+#include "cuda_fp16.h"
+
+#ifdef half_enable
+#define FP half
+#else
+#define FP float
+#endif
+
 // Adapted from https://github.com/hellopatrick/cuda-samples/blob/master/hsv/kernel.cu
 __device__ uchar3 hsv_to_rgb(float h, float s, float v) {
     float r, g, b;
@@ -87,20 +95,49 @@ __device__ __forceinline__ void prefetch_l2 (unsigned int addr)
   asm volatile(" prefetch.global.L2 [ %1 ];": "=r"(addr) : "r"(addr));
 }
 
+#ifdef half_enable
+__device__ __forceinline__ cell_t<float> h2f(const cell_t<half>& c) {
+    cell_t<float> c2;
+    #pragma unroll
+    for(int i = 0; i <= 2; i ++) {
+        #pragma unroll
+        for(int j = 0; j <= 2; j ++) {
+            c2.d[i][j] = c.d[i][j];
+        }
+    }
+    return c2;
+}
+
+__device__ __forceinline__ cell_t<half> f2h(const cell_t<float>& c) {
+    cell_t<half> c2;
+    #pragma unroll
+    for(int i = 0; i <= 2; i ++) {
+        #pragma unroll
+        for(int j = 0; j <= 2; j ++) {
+            c2.d[i][j] = c.d[i][j];
+        }
+    }
+    return c2;
+}
+#else
+#define h2f(x) (x)
+#define f2h(x) (x)
+#endif
+
 template<bool shouldDisplay>
-__device__ void fcs(grid_t<cell_t<float>>* newcells, grid_t<uchar3>* frame, const grid_t<cell_t<float>>* cells,
-                                     const grid_t<bool>* blocked, const cell_t<float>* surroundings) {
+__device__ void fcs(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>* frame, const grid_t<cell_t<FP>>* cells,
+                                     const grid_t<bool>* blocked, const cell_t<FP>* surroundings) {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     bool isHalo = (x%32 == 0 || x%32 == 31);
     x -= (x/32) * 2 + 1;
     bool isEdge = (x < 0 || x >= M);
     isHalo = isEdge || isHalo;
 
-    cell_t<float> surr = *surroundings;
+    cell_t<float> surr = h2f(*surroundings);
     cell_t<float> prev = surr, curr = surr, next;
 
     {
-        next = cells->d[0][x];
+        next = h2f(cells->d[0][x]);
         float s1 = next.d[0][0] + next.d[0][1] + next.d[0][2];
         float s2 = next.d[1][0] + next.d[1][1] + next.d[1][2];
         float s3 = next.d[2][0] + next.d[2][1] + next.d[2][2];
@@ -149,7 +186,7 @@ __device__ void fcs(grid_t<cell_t<float>>* newcells, grid_t<uchar3>* frame, cons
         if(isEdge || y == N - 1)
             next = surr;
         else
-            next = cells->d[y+1][x];
+            next = h2f(cells->d[y+1][x]);
         float s1 = next.d[0][0] + next.d[0][1] + next.d[0][2];
         float s2 = next.d[1][0] + next.d[1][1] + next.d[1][2];
         float s3 = next.d[2][0] + next.d[2][1] + next.d[2][2];
@@ -209,14 +246,14 @@ __device__ void fcs(grid_t<cell_t<float>>* newcells, grid_t<uchar3>* frame, cons
 
             // Write the new cell if not a halo cell
             if(!isHalo) {
-                newcells->d[y][x] = newcurr;
+                newcells->d[y][x] = f2h(newcurr);
             }
         }
     }
 }
 extern "C" {
-    __global__ void fused_collide_stream(grid_t<cell_t<float>>* newcells, grid_t<uchar3>* frame, const grid_t<cell_t<float>>* cells,
-        const grid_t<bool>* blocked, const cell_t<float>* surroundings) {
+    __global__ void fused_collide_stream(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>* frame, const grid_t<cell_t<FP>>* cells,
+        const grid_t<bool>* blocked, const cell_t<FP>* surroundings) {
         if(frame)
             fcs<true>(newcells, frame, cells, blocked, surroundings);
         else
