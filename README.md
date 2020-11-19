@@ -1,7 +1,7 @@
 Lattice Boltzmann Method
 ========================
 
-2D lattice boltzmann fluid sim. Achieves 5.7 GLUPS on an RTX 2070, approx. 80% of memory bandwidth SOL.
+2D lattice boltzmann fluid sim. Achieves 5.7 GLUPS on an RTX 2070, approx. 92% of maximum achievable memory bandwidth.
 
 (Another test yields 4k630Hz)
 
@@ -39,6 +39,8 @@ Install pycuda from source with `./configure.py --cuda-enable-gl`
 
 ## Benchmarking
 
+Achieved memory bandwidth is 406GBps, compared to 441GBps achieved in the bandwidthTest CUDA sample, and 506GBps bandwidth SOL (this was overclocked to 7899MHz; stock is 7000MHz/448GBps).
+
 ### Python profiling:
 Run `python -m cProfile -s cumtime latticeboltzmann.py | less` for perhaps a minute.
 
@@ -55,6 +57,8 @@ Then run `nv-nsight-cu-cli --target-processes all python latticeboltzmann.py`. A
 
 ### Notes on overclocking:
 Using MSI Afterburner, I can get a +200MHz core overclock on my 2070, yielding almost no performance boost. Overclocking the memory has much larger gains; +1100MHz overclock yields a nearly 20% performance boost.
+
+Run the UnifiedMemoryPerf CUDA sample to get a sense of when we start encountering errors.
 
 ## Future directions
 - [x] Implemented in python
