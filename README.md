@@ -60,6 +60,14 @@ Using MSI Afterburner, I can get a +200MHz core overclock on my 2070, yielding a
 
 Run the UnifiedMemoryPerf CUDA sample to get a sense of when we start encountering errors.
 
+### Notes on nvcc:
+
+Useful command to dump all intermediate products
+
+```
+nvcc -keep -cubin --use_fast_math -O3 -Xptxas -O3,-v -arch sm_75 --extra-device-vectorization --restrict lb_cuda_kernel.cu && cuobjdump -sass lb_cuda_kernel.cubin | grep '\/\*0' > lb_cuda_kernel.sass
+```
+
 ## Future directions
 - [x] Implemented in python
 - [x] Very vectorized in numpy
