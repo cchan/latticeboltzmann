@@ -79,33 +79,33 @@ assert(np.isclose(sum(surroundings), p_ambient, rtol=rtol)) # Conservation of ma
 assert(np.isclose(surroundings @ e_f / p_ambient, u_ambient, rtol=rtol).all()) # Conservation of momentum
 insides = getEquilibrium(np.array([u_insides], dtype=dtype), np.array([p_insides], dtype=dtype))[0]
 
-# Note that blocked = True means that omega is 1, so no thermal perturbation occurs before reflection back into the rest of the system.
-omega = np.where(np.expand_dims(blocked,-1), np.array(1,ndmin=3), np.array(OMEGA, ndmin=3))
+# # Note that blocked = True means that omega is 1, so no thermal perturbation occurs before reflection back into the rest of the system.
+# omega = np.where(np.expand_dims(blocked,-1), np.array(1,ndmin=3), np.array(OMEGA, ndmin=3))
 
 
-def display(u, p, video):
-  h = (np.arctan2(u[...,0], u[...,1]) + math.pi)/2/math.pi
-  s = np.sum(u**2, axis=-1)**0.5*100000
-  v = p
-  video.append_data((matplotlib.colors.hsv_to_rgb(np.clip(np.stack([h,s,v], 2), 0, 1))*255.99).astype(np.uint8))
+# def display(u, p, video):
+#   h = (np.arctan2(u[...,0], u[...,1]) + math.pi)/2/math.pi
+#   s = np.sum(u**2, axis=-1)**0.5*100000
+#   v = p
+#   video.append_data((matplotlib.colors.hsv_to_rgb(np.clip(np.stack([h,s,v], 2), 0, 1))*255.99).astype(np.uint8))
 
-def collide(cells, u, p):
-  equilibrium = getEquilibrium(u, p) # get thermal equilibrium distribution given the net density/velocity in this cell
+# def collide(cells, u, p):
+#   equilibrium = getEquilibrium(u, p) # get thermal equilibrium distribution given the net density/velocity in this cell
 
-  # decay toward thermal equilibrium
-  cells -= equilibrium
-  cells *= omega
-  cells += equilibrium
+#   # decay toward thermal equilibrium
+#   cells -= equilibrium
+#   cells *= omega
+#   cells += equilibrium
 
-def stream(cells):
-  for k, (dy, dx) in enumerate(e):
-    # TODO: Cache locality: move k to be the first dimension. (but how is cache locality for getEquilibrium?)
-    cells[max(dy,0):N+min(dy,0), max(dx,0):M+min(dx,0), k] = cells[max(-dy,0):N+min(-dy,0), max(-dx,0):M+min(-dx,0), k]
-    cells[:, min(dx,0):max(dx,0),k] = surroundings[k]
-    cells[min(dy,0):max(dy,0), :,k] = surroundings[k]
+# def stream(cells):
+#   for k, (dy, dx) in enumerate(e):
+#     # TODO: Cache locality: move k to be the first dimension. (but how is cache locality for getEquilibrium?)
+#     cells[max(dy,0):N+min(dy,0), max(dx,0):M+min(dx,0), k] = cells[max(-dy,0):N+min(-dy,0), max(-dx,0):M+min(-dx,0), k]
+#     cells[:, min(dx,0):max(dx,0),k] = surroundings[k]
+#     cells[min(dy,0):max(dy,0), :,k] = surroundings[k]
 
-def reflect(cells):
-  cells[blocked] = np.flip(cells[blocked], axis=-1)
+# def reflect(cells):
+#   cells[blocked] = np.flip(cells[blocked], axis=-1)
 
 with open("lb_cuda_kernel.cu", "r") as cu:
     mod = SourceModule(f"""
@@ -117,9 +117,9 @@ fused_collide_stream = mod.get_function("fused_collide_stream")
 fused_collide_stream.prepare("PPPPP")
 
 cells = np.where(np.expand_dims(blocked,-1), np.array(insides,ndmin=3,dtype=dtype), np.array(insides, ndmin=3, dtype=dtype)) # cells should have k as its first dimension for cache efficiency
-stream(cells)
-reflect(cells)
-cells = np.where(np.expand_dims(blocked,-1), cells, np.array(insides, ndmin=3))
+# stream(cells)
+# reflect(cells)
+# cells = np.where(np.expand_dims(blocked,-1), cells, np.array(insides, ndmin=3))
 
 cells_gpu = drv.to_device(cells)
 newcells_gpu = drv.to_device(cells)

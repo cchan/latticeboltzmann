@@ -80,7 +80,7 @@ nvcc -keep -cubin --use_fast_math -O3 -Xptxas -O3,-v -arch sm_75 --extra-device-
 - [x] PyTorch implementation (cf https://github.com/kobejean/tf-cfd?)
   - Failed, pytorch has a 3-4x slowdown :/
 - CUDA
-  - [ ] Explore better simulation-time memory layouts (morton, tiling, etc. - unlikely that the display layout is the optimal computational layout)
+  - [ ] Explore better simulation-time memory layouts (morton, tiling, SoA, etc. - unlikely that the display layout is the optimal computational layout)
   - [ ] D2Q21 or similar - kinda equivalent to doing two D2Q9 timesteps in one go.
   - [ ] D3Q19
   - [ ] Write newcurr directly and get rid of the double buffer... or maybe this won't help because memory again? Might get some caching benefits though.

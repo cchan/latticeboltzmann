@@ -174,10 +174,13 @@ __device__ void fcs(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>* frame, const g
         // struct coalescing_block {
         //     float4 a[32], b[32], c[32], d[32], e[32], f[32], g[32], h[32], i[32];
         // }
-
-        // Another thing is that according to the Occupancy Calculator the ideal register use is < 64 per thread.
-            // We are currently at 57. Great.
-        // An attempt to get some of the useless elements of prev out of registers didn't do anything.
+        // Actually a better way to do this might be to have 9 separate arrays (SoA), each containing the direction, and load 4 at a time from each of those.
+            // Register pressure though... 36 registers just from those loads. Maybe SoA is not the right way to go.
+        // It's possible that the above doesn't increase register pressure if done carefully (only 3 128bit registers in use at a time, reuse the earlier registers) but that takes a lot of work.
+        // I should probably just implement 3D lattice boltzmann first before attempting this micro-optimization, since we're already at 92% achievable.
+        //
+        // NOTE: According to the Occupancy Calculator the ideal register use is < 64 per thread. Since we are currently at 57, using any more will affect maximum occupancy.
+        // An attempt to get some of the useless elements of prev out of registers didn't do anything:
             // prev0 = curr.d[0][2];
             // prev1 = curr.d[1][2];
             // prev2 = curr.d[2][2];
@@ -206,7 +209,7 @@ __device__ void fcs(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>* frame, const g
             }
         }
 
-        // Compute collide
+        // Compute collide (if blocked, don't do this - no thermal perturbation, purely reflection)
         if(!blocked->d[y][x]) {
             float c = 1 - r2/2*(ux*ux + uy*uy);
             #pragma unroll
