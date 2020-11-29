@@ -62,6 +62,9 @@ else:
 video = imageio.get_writer('./latticeboltzmann.mp4', fps=60)
 
 
+INNER_TIMESTEPS = 1
+INNER_BLOCK = N+1
+
 OMEGA = 0.00000000000001 # affects viscosity (0 is completely viscous, 1 is zero viscosity)
 p_ambient = 100 # density
 u_ambient = [0, 0.1] # velocity - higher values become more unstable
@@ -112,6 +115,8 @@ with open("lb_cuda_kernel.cu", "r") as cu:
       #define N {N}
       #define M {M}
       #define OMEGA {OMEGA}f
+      #define INNER_TIMESTEPS {INNER_TIMESTEPS}
+      #define INNER_BLOCK {INNER_BLOCK}
     """ + ("#define half_enable\n" if dtype == np.float16 else "") + cu.read(), no_extern_c=1, options=['--use_fast_math', '-O3', '-Xptxas', '-O3,-v', '-arch', 'sm_75', '--extra-device-vectorization', '--restrict'])
 fused_collide_stream = mod.get_function("fused_collide_stream")
 fused_collide_stream.prepare("PPPPP")
@@ -148,7 +153,7 @@ try:
       # a huge number of things into the stream and then hits a blocker (stream.synchronize()).
       # so the first iterations before the first render are always super fast.
       curr_time = time.time()
-      print((curr_time - prev_time) * 1000, "us per iteration / ", N * M / 1000000 / (curr_time - prev_time), "GLUPS / ", 2 * N * M / 1000000 * 9 * 4 / (curr_time - prev_time), "GBps", "(iter " + str(iter+1) + ")")
+      print((curr_time - prev_time) * 1000 / INNER_TIMESTEPS, "us per iteration / ", N * M / 1000000 / (curr_time - prev_time) * INNER_TIMESTEPS, "GLUPS / ", 2 * N * M / 1000000 * 9 * 4 / (curr_time - prev_time) * INNER_TIMESTEPS, "GBps", "(iter " + str((iter+1) * INNER_TIMESTEPS) + ")")
       prev_time = curr_time
 
     # # Get the total density and net velocity for each cell
@@ -158,9 +163,9 @@ try:
     # np.nan_to_num(u, copy=False) # Is this a bad hack? if p == 0 (i.e. blocked) then we want u to be zero.
 
     # Fused version
-    fused_collide_stream.prepared_async_call((math.ceil(M/30/4), 1, 1), (128, 1, 1), stream1,
+    fused_collide_stream.prepared_async_call((math.ceil(M/(32 - 2*INNER_TIMESTEPS)/4), 1, 1), (128, 1, 1), stream1,
       newcells_gpu, frame1_gpu if iter % 100 == 0 else 0, cells_gpu, blocked_gpu, surroundings_gpu)
-    if iter % 200 == 0:
+    if iter % (200 // INNER_TIMESTEPS) == 0:
       if a1 is not None:
         a1.join()
       drv.memcpy_dtoh_async(frame1, frame1_gpu, stream=stream1)

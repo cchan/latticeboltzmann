@@ -4,6 +4,12 @@
 #ifndef M
 #define M 3840
 #endif
+#ifndef INNER_TIMESTEPS
+#define INNER_TIMESTEPS 1
+#endif
+#ifndef INNER_BLOCK
+#define INNER_BLOCK 2000000
+#endif
 #ifndef OMEGA
 #define OMEGA 0.00000000000001f
 #endif
@@ -128,30 +134,26 @@ template<bool shouldDisplay>
 __device__ void fcs(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>* frame, const grid_t<cell_t<FP>>* cells,
                                      const grid_t<bool>* blocked, const cell_t<FP>* surroundings) {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
-    bool isHalo = (x%32 == 0 || x%32 == 31);
-    x -= (x/32) * 2 + 1;
+    bool isHalo = (x%32 < INNER_TIMESTEPS || x%32 > 31 - INNER_TIMESTEPS);
+    x -= (x/32) * INNER_TIMESTEPS * 2 + INNER_TIMESTEPS;
     bool isEdge = (x < 0 || x >= M);
     isHalo = isEdge || isHalo;
 
     cell_t<float> surr = h2f(*surroundings);
-    cell_t<float> prev = surr, curr = surr, next;
+    cell_t<float> prev, curr, next;
 
-    {
-        next = h2f(cells->d[0][x]);
-        float s1 = next.d[0][0] + next.d[0][1] + next.d[0][2];
-        float s2 = next.d[1][0] + next.d[1][1] + next.d[1][2];
-        float s3 = next.d[2][0] + next.d[2][1] + next.d[2][2];
-        float d = s1 + s2 + s3 + 0.0001; // Total density (plus a fudge factor for numerical stability)
-                                         // Alternative numerical stability method is to prevent any values from going negative.
-                                         // Consider using half-precision.
-        float uy = (s3 - s1)/d; // Y component of average velocity
-        float ux = (next.d[0][2] + next.d[1][2] + next.d[2][2] - next.d[0][0] - next.d[1][0] - next.d[2][0])/d; // X component of average velocity
-
-        prev = curr;
-        curr = next;
+    for(int z = -1; z < N; z += INNER_BLOCK) {
+    if(z == -1) {
+        prev = surr;
+        curr = surr;
+    } else {
+        prev = cells->d[z-1][x]; // technically incorrect if you're incrementing z by 1 in the big loop
+        curr = cells->d[z][x];
     }
 
-    for(int y = 0; y < N; y++) {
+    for(int timestep = 0; timestep < INNER_TIMESTEPS; timestep ++) {
+
+    for(int y = z; y < z + INNER_BLOCK + 2 * INNER_TIMESTEPS && y < N; y++) {
         // if(y&31==0)
         //     prefetch_l2((unsigned int)&cells->d[y+32][x]); // This produces no appreciable benefit. :(
         // also tried using "nextnext" to get it loaded into registers on the previous iteration, but that didn't seem to help
@@ -184,12 +186,24 @@ __device__ void fcs(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>* frame, const g
             // prev0 = curr.d[0][2];
             // prev1 = curr.d[1][2];
             // prev2 = curr.d[2][2];
+        //
+        // NOTE 2: to circumvent the memory bottleneck, we need to do more compute per unit of data. That means maybe do 2 or more iterations of LBM on a given block. This increases halo size though.
+            // But this doesn't have to be at the individual warp level - we can have larger chunks that fit into (half of?) L2 cache, which has 5x bandwidth, and iterate enough times (5?) to balance with global memory.
+            // Just implement 3D first though, because all these considerations and tunings dramatically change.
+        // NOTE 3: can we make it 32-wide instead of 30-wide? because 30-wide hobbles 3D. but the edge ones will have to read extra, stalling the others...
+        // NOTE 4: register reuse caches and register banks/ports - see https://developer.download.nvidia.com/video/gputechconf/gtc/2019/presentation/s9839-discovering-the-turing-t4-gpu-architecture-with-microbenchmarks.pdf manual sass tuning
+
+        // 50ish rows fit into L1
+        // 80ish rows fit into L2
+        // so lookahead to 20 while loading the next 20?? just test out some lookaheads for the inner inner loop.
 
         // Calculate aggregates
-        if(isEdge || y == N - 1)
+        if(isEdge || y < -1 || y >= N - 1)
             next = surr;
-        else
+        else if(timestep == 0)
             next = h2f(cells->d[y+1][x]);
+        else
+            next = h2f(newcells->d[y+1][x]);
         float s1 = next.d[0][0] + next.d[0][1] + next.d[0][2];
         float s2 = next.d[1][0] + next.d[1][1] + next.d[1][2];
         float s3 = next.d[2][0] + next.d[2][1] + next.d[2][2];
@@ -199,9 +213,15 @@ __device__ void fcs(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>* frame, const g
         float uy = (s3 - s1)/d; // Y component of average velocity
         float ux = (next.d[0][2] + next.d[1][2] + next.d[2][2] - next.d[0][0] - next.d[1][0] - next.d[2][0])/d; // X component of average velocity
 
+        if(y == -1) {
+            prev = curr;
+            curr = next;
+            continue;
+        }
+
         if constexpr(shouldDisplay) {
             // Display the frame
-            if (frame && !isHalo) {
+            if (timestep == INNER_TIMESTEPS - 1 && frame && !isHalo) {
                 float h = atan2f(uy, ux) + PI;
                 float s = __saturatef(1000 * sqrtf(ux*ux+uy*uy));
                 float v = __saturatef(d);
@@ -248,10 +268,14 @@ __device__ void fcs(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>* frame, const g
             }
 
             // Write the new cell if not a halo cell
-            if(!isHalo) {
+            if(!isHalo && (y > z + INNER_TIMESTEPS || z == -1)) {
                 newcells->d[y][x] = f2h(newcurr);
             }
         }
+    }
+
+    }
+
     }
 }
 extern "C" {
