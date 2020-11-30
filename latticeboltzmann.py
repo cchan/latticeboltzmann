@@ -62,8 +62,15 @@ else:
 video = imageio.get_writer('./latticeboltzmann.mp4', fps=60)
 
 
-INNER_TIMESTEPS = 1
-INNER_BLOCK = N+1
+INNER_TIMESTEPS = 1 # Number of times the inner loop repeats.
+INNER_BLOCK = N+1 # Number of rows of a 32-wide column to be processed in an inner loop.
+BLOCKS_THREADS_TUNE_CONSTANT = 4 # Adjust the blocks/threads tradeoff. Higher means more threads per block, but fewer blocks.
+# I think the conclusion from this tuning is:
+#   1) the cache is far too small for this to work in this way (we need RDNA2 Infinity Cache for this)
+#   2) there might actually be a compute bottleneck as well. which means we're at a decently optimal point.
+#   3) Remember that SMs can have *thousands* of threads. On Turing the limit is 32 warps per SM * 32 threads per warp = 1024 threads per SM. Times 40 SMs in an RTX 2070. Again, the cache is far too small.
+#       More detail: L1, 64 KB per SM, among 1024 threads is 64 bytes per thread. L2, 4 MB among 40 SMs, is 97.7 bytes per thread. And with fp32 we have 36 bytes per cell.
+#       (This assumes max occupancy, not sure if this is true.)
 
 OMEGA = 0.00000000000001 # affects viscosity (0 is completely viscous, 1 is zero viscosity)
 p_ambient = 100 # density
@@ -163,7 +170,7 @@ try:
     # np.nan_to_num(u, copy=False) # Is this a bad hack? if p == 0 (i.e. blocked) then we want u to be zero.
 
     # Fused version
-    fused_collide_stream.prepared_async_call((math.ceil(M/(32 - 2*INNER_TIMESTEPS)/4), 1, 1), (128, 1, 1), stream1,
+    fused_collide_stream.prepared_async_call((math.ceil(M/(32 - 2*INNER_TIMESTEPS)/BLOCKS_THREADS_TUNE_CONSTANT), 1, 1), (32 * BLOCKS_THREADS_TUNE_CONSTANT, 1, 1), stream1,
       newcells_gpu, frame1_gpu if iter % 100 == 0 else 0, cells_gpu, blocked_gpu, surroundings_gpu)
     if iter % (200 // INNER_TIMESTEPS) == 0:
       if a1 is not None:

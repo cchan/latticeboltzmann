@@ -142,6 +142,11 @@ __device__ void fcs(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>* frame, const g
     cell_t<float> surr = h2f(*surroundings);
     cell_t<float> prev, curr, next;
 
+    // This fails because there is far too little shared memory and also I think we're already using L1/L2
+    // (at the same INNER_BLOCK and INNER_TIMESTEPS it's actually slower to use shared than just directly accessing newcells[][]).
+    // __shared__ cell_t<FP> cache[32][INNER_BLOCK + 2 * INNER_TIMESTEPS + 1];
+    // If it's already making use of L1/L2, why is it so slow then? Especially on the multi-iteration runs.
+
     for(int z = -1; z < N; z += INNER_BLOCK) {
     if(z == -1) {
         prev = surr;
