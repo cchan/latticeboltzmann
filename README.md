@@ -34,8 +34,9 @@ My setup:
 - Python 3.7.4 using conda
 I suspect but cannot test that this will work with much earlier versions / lower specs. (Was previously on 18.04 pure linux, 440.59, 10.2)
 
-Install pycuda from source with `./configure.py --cuda-enable-gl`
-
+To install, just:
+- `sudo apt install cuda-toolkit-11-1` (plus all the rest of https://docs.nvidia.com/cuda/wsl-user-guide/index.html)
+- `pip install pycuda imageio-ffmpeg`
 
 ## Benchmarking
 
