@@ -230,6 +230,9 @@ __device__ void fcs(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>* frame, const g
                 float h = atan2f(uy, ux) + PI;
                 float s = __saturatef(1000 * sqrtf(ux*ux+uy*uy));
                 float v = __saturatef(d);
+                if(blocked->d[y][x]) {
+                    h = s = v = 0;
+                }
                 frame->d[y][x] = hsv_to_rgb(h, s, v);
             }
         }

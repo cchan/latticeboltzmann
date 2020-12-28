@@ -41,6 +41,7 @@ if len(sys.argv) > 1:
   print(blocked.shape)
   N = blocked.shape[0]
   M = blocked.shape[1]
+  video = imageio.get_writer(sys.argv[1] + '.mp4', fps=60)
 else:
   N = 2160
   M = 3840
@@ -59,7 +60,7 @@ else:
   isBlocked = np.vectorize(isBlocked)
   blocked = np.fromfunction(isBlocked, (N, M))
 
-video = imageio.get_writer('./latticeboltzmann.mp4', fps=60)
+  video = imageio.get_writer('./latticeboltzmann.mp4', fps=60)
 
 
 INNER_TIMESTEPS = 1 # Number of times the inner loop repeats.
