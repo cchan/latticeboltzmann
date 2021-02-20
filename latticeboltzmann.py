@@ -11,6 +11,7 @@ from itertools import count
 import pycuda.autoinit
 import pycuda.driver as drv
 from pycuda.compiler import SourceModule
+import cv2
 
 dtype = np.float32
 
@@ -43,29 +44,12 @@ if len(sys.argv) > 1:
   M = blocked.shape[1]
   video = imageio.get_writer(sys.argv[1] + '.mp4', fps=60)
 else:
-  N = 2160
-  M = 3840
-  def isBlocked(y, x):
-    #return (10 <= x < M-10 and 10 <= y < N-10) and not \
-    #       (13 <= x < M-13 and 10 <= y < N-13)
-    return (x - N/4) ** 2 + (y - N/2) ** 2 <= (N/16)**2 or \
-          (x - N/2) ** 2 + (y - N/3) ** 2 <= (N/9)**2 or \
-          (x - N/2) ** 2 + (y - 2*N/3) ** 2 <= (N/25)**2 or \
-          (x - N) ** 2 + (y - 2*N/5) ** 2 <= (N/144)**2 or \
-          (x - N) ** 2 + (y - 3*N/5) ** 2 <= (N/144)**2 or \
-          (x - 3*N/2) ** 2 + (y - 2*N/5) ** 2 <= (N/144)**2 or \
-          (x - 3*N/2) ** 2 + (y - 3*N/5) ** 2 <= (N/144)**2 or \
-          (x - 2*N) ** 2 + (y - 2*N/5) ** 2 <= (N/144)**2 or \
-          (x - 2*N) ** 2 + (y - 3*N/5) ** 2 <= (N/144)**2
-  isBlocked = np.vectorize(isBlocked)
-  blocked = np.fromfunction(isBlocked, (N, M))
-
-  video = imageio.get_writer('./latticeboltzmann.mp4', fps=60)
+  raise ValueError("No base image provided")
 
 
 INNER_TIMESTEPS = 1 # Number of times the inner loop repeats.
-INNER_BLOCK = N+1 # Number of rows of a 32-wide column to be processed in an inner loop.
-BLOCKS_THREADS_TUNE_CONSTANT = 4 # Adjust the blocks/threads tradeoff. Higher means more threads per block, but fewer blocks.
+INNER_BLOCK = N+1 # Number of rows of a 32-wide column to be processed in an inner loop chunk.
+BLOCKS_THREADS_TUNE_CONSTANT = 8 # Adjust the blocks/threads tradeoff. Higher means more threads per block, but fewer blocks.
 # I think the conclusion from this tuning is:
 #   1) the cache is far too small for this to work in this way (we need RDNA2 Infinity Cache for this)
 #   2) there might actually be a compute bottleneck as well. which means we're at a decently optimal point.
@@ -125,9 +109,10 @@ with open("lb_cuda_kernel.cu", "r") as cu:
       #define OMEGA {OMEGA}f
       #define INNER_TIMESTEPS {INNER_TIMESTEPS}
       #define INNER_BLOCK {INNER_BLOCK}
-    """ + ("#define half_enable\n" if dtype == np.float16 else "") + cu.read(), no_extern_c=1, options=['--use_fast_math', '-O3', '-Xptxas', '-O3,-v', '-arch', 'sm_75', '--extra-device-vectorization', '--restrict'])
+    """ + ("#define half_enable\n" if dtype == np.float16 else "") + cu.read(), no_extern_c=1, options=['--use_fast_math', '-O3', '-Xptxas', '-O3,-v,-dlcm=ca,-dscm=wt,-warn-spills,-warn-double-usage,-warn-lmem-usage', '-arch', 'sm_75', '--extra-device-vectorization', '--restrict', '--resource-usage'])
 fused_collide_stream = mod.get_function("fused_collide_stream")
 fused_collide_stream.prepare("PPPPP")
+fused_collide_stream.set_cache_config(pycuda.driver.func_cache.PREFER_L1)
 
 cells = np.where(np.expand_dims(blocked,-1), np.array(insides,ndmin=3,dtype=dtype), np.array(insides, ndmin=3, dtype=dtype)) # cells should have k as its first dimension for cache efficiency
 # stream(cells)
@@ -151,17 +136,17 @@ a1 = None
 a2 = None
 def appendData(frame, stream):
   stream.synchronize()
-  video.append_data(frame)
+  video.append_data(cv2.resize(frame, dsize=(M//4, N//4), interpolation=cv2.INTER_CUBIC))
 
 prev_time = time.time()
 try:
-  for iter in range(250000):#count():
-    if iter % 1000 == 999:
+  for curr_iter in count():
+    if curr_iter % 1000 == 999:
       # The reason it takes such a short amount of time on the first iteration is that it loads
       # a huge number of things into the stream and then hits a blocker (stream.synchronize()).
       # so the first iterations before the first render are always super fast.
       curr_time = time.time()
-      print((curr_time - prev_time) * 1000 / INNER_TIMESTEPS, "us per iteration / ", N * M / 1000000 / (curr_time - prev_time) * INNER_TIMESTEPS, "GLUPS / ", 2 * N * M / 1000000 * 9 * 4 / (curr_time - prev_time) * INNER_TIMESTEPS, "GBps", "(iter " + str((iter+1) * INNER_TIMESTEPS) + ")")
+      print((curr_time - prev_time) * 1000 / INNER_TIMESTEPS, "us per iteration / ", N * M / 1000000 / (curr_time - prev_time) * INNER_TIMESTEPS, "GLUPS / ", 2 * N * M / 1000000 * 9 * 4 / (curr_time - prev_time) * INNER_TIMESTEPS, "GBps", "(iter " + str((curr_iter+1) * INNER_TIMESTEPS) + ")")
       prev_time = curr_time
 
     # # Get the total density and net velocity for each cell
@@ -172,8 +157,8 @@ try:
 
     # Fused version
     fused_collide_stream.prepared_async_call((math.ceil(M/(32 - 2*INNER_TIMESTEPS)/BLOCKS_THREADS_TUNE_CONSTANT), 1, 1), (32 * BLOCKS_THREADS_TUNE_CONSTANT, 1, 1), stream1,
-      newcells_gpu, frame1_gpu if iter % 100 == 0 else 0, cells_gpu, blocked_gpu, surroundings_gpu)
-    if iter % (200 // INNER_TIMESTEPS) == 0:
+      newcells_gpu, frame1_gpu if curr_iter % 100 == 0 else 0, cells_gpu, blocked_gpu, surroundings_gpu)
+    if curr_iter % (200 // INNER_TIMESTEPS) == 0:
       if a1 is not None:
         a1.join()
       drv.memcpy_dtoh_async(frame1, frame1_gpu, stream=stream1)
@@ -186,17 +171,15 @@ try:
     stream1, stream2 = stream2, stream1
     a1, a2 = a2, a1
 
-    # # Display density
-    # display(u, p, video)
-    # # Collisions (decay toward boltzmann distribution)
-    # collide(cells, u, p)
-    # # Streaming (movement)
-    # stream(cells)
-    # # Reflect at object edges
-    # reflect(cells)
-
 except KeyboardInterrupt:
-  print("Done")
-  if a1 is not None: a1.join()
-  if a2 is not None: a2.join()
-  video.close()
+  print("KeyboardInterrupt")
+  print("current iteration: ", (curr_iter+1) * INNER_TIMESTEPS)
+  pass
+
+print("Waiting for streams and threads to finish...")
+stream1.synchronize()
+stream2.synchronize()
+if a1 is not None: a1.join()
+if a2 is not None: a2.join()
+video.close()
+print("Done")

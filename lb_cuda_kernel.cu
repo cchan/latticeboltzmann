@@ -101,6 +101,54 @@ __device__ __forceinline__ void prefetch_l2 (unsigned int addr)
   asm volatile(" prefetch.global.L2 [ %1 ];": "=r"(addr) : "r"(addr));
 }
 
+#ifdef USE_PACKED_CELLS
+// Something to try......
+// each cell is 9 * 4 bytes, which doesn't align well (you can load up to 16B in one insn)
+// and also probably has a lot of shared info (i.e. shared-exponent floating point).
+// This means that a custom binary format (instead of cell_t<half>) could be used for global memory,
+// and then manually shifted into IEEE fp32 by h2f.
+    // 8b exponent + 20b mantissa * 9 = 188b < 192b = 24B. 1 cell = 3 * LDG.E.64
+    // ... could also just use fixed point (i.e. manipulate integers and assume some fixed exponent like 2**-8) lol
+// This would necessitate more subtle comparison testing because it won't be as obviously wrong as fp16 was (which has 10 bits of mantissa).
+// Would also be worth doing a validation against an analytical solution.
+
+struct packed_cell {
+    int2 d[3];
+};
+
+__device__ __forceinline__ cell_t<float> p2f(const packed_cell& p) {
+    // assumes the sign is always positive... which it should be.
+    cell_t<float> c;
+    int mantissa = ((*(int*)&p.d[0]) & 255) << 23;
+    return c;
+}
+__device__ __forceinline__ packed_cell f2p(const cell_t<float>& c) {
+    // extract all the components
+    // take the maximum exponent we can find
+    // for each of the 9 components, rightshift the mantissa by (max - mine) to make it fixed point
+    // then rightshift it again by 3 for the known precision reduction to 20b, which is still way better than the 10b of fp16
+
+    packed_cell p;
+    int maxexp = 0;
+
+    for(int i = 0; i < 3; i++) {
+        for(int j = 0; j < 3; j++) {
+            int exp1 = ((*(int*)&c.d[i][j]) >> 23) & 255;
+            maxexp = max(maxexp, exp1);
+        }
+    }
+    copy_to_bit_offset(&packed_cell, maxexp, 10);
+    for(int i = 0; i < 3; i++) {
+        for(int j = 0; j < 3; j++) {
+            int exp1 = ((*(int*)&c.d[i][j]) >> 23) & 255;
+            int mantissa = ((*(int*)&c.d[i][j]) & ((1 << 23) - 1)) >> (maxexp - exp1 + 3);
+        }
+    }
+    ((unsigned char*)&packed_cell)
+    return p;
+}
+#endif // USE_PACKED_CELLS
+
 #ifdef half_enable
 __device__ __forceinline__ cell_t<float> h2f(const cell_t<half>& c) {
     cell_t<float> c2;
@@ -129,6 +177,34 @@ __device__ __forceinline__ cell_t<half> f2h(const cell_t<float>& c) {
 #define h2f(x) (x)
 #define f2h(x) (x)
 #endif
+
+// Did not work :(
+__device__ __forceinline__ cell_t<float> __ldcs_cell(const cell_t<float>* cell) {
+    cell_t<float> c;
+    // also tried ldg, ldca
+    c.d[0][0] = __ldcs(((float*)cell) + 0);
+    c.d[0][1] = __ldcs(((float*)cell) + 1);
+    c.d[0][2] = __ldcs(((float*)cell) + 2);
+    c.d[1][0] = __ldcs(((float*)cell) + 3);
+    c.d[1][1] = __ldcs(((float*)cell) + 4);
+    c.d[1][2] = __ldcs(((float*)cell) + 5);
+    c.d[2][0] = __ldcs(((float*)cell) + 6);
+    c.d[2][1] = __ldcs(((float*)cell) + 7);
+    c.d[2][2] = __ldcs(((float*)cell) + 8);
+    return c;
+}
+
+__device__ __forceinline__ void __stcs_cell(const cell_t<float>* cell, const cell_t<float>& c) {
+    __stcs(((float*)cell) + 0, c.d[0][0]);
+    __stcs(((float*)cell) + 1, c.d[0][1]);
+    __stcs(((float*)cell) + 2, c.d[0][2]);
+    __stcs(((float*)cell) + 3, c.d[1][0]);
+    __stcs(((float*)cell) + 4, c.d[1][1]);
+    __stcs(((float*)cell) + 5, c.d[1][2]);
+    __stcs(((float*)cell) + 6, c.d[2][0]);
+    __stcs(((float*)cell) + 7, c.d[2][1]);
+    __stcs(((float*)cell) + 8, c.d[2][2]);
+}
 
 template<bool shouldDisplay>
 __device__ void fcs(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>* frame, const grid_t<cell_t<FP>>* cells,
@@ -207,6 +283,7 @@ __device__ void fcs(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>* frame, const g
             next = surr;
         else if(timestep == 0)
             next = h2f(cells->d[y+1][x]);
+            // next = h2f(__ldcs_cell(&cells->d[y+1][x]));
         else
             next = h2f(newcells->d[y+1][x]);
         float s1 = next.d[0][0] + next.d[0][1] + next.d[0][2];
@@ -278,6 +355,7 @@ __device__ void fcs(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>* frame, const g
             // Write the new cell if not a halo cell
             if(!isHalo && (y > z + INNER_TIMESTEPS || z == -1)) {
                 newcells->d[y][x] = f2h(newcurr);
+                // __stcs_cell(&newcells->d[y][x], f2h(newcurr));
             }
         }
     }
