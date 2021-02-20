@@ -126,6 +126,8 @@ surroundings_gpu = drv.to_device(surroundings)
 frame1_gpu = drv.to_device(np.empty((N, M, 3), dtype=np.uint8))
 frame2_gpu = drv.to_device(np.empty((N, M, 3), dtype=np.uint8))
 
+drv.Context.synchronize()
+
 stream1 = drv.Stream(flags=0)
 stream2 = drv.Stream(flags=0)
 frame1 = drv.pagelocked_empty((N, M, 3), dtype=np.uint8)

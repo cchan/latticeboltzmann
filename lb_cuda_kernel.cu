@@ -315,7 +315,7 @@ __device__ void fcs(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>* frame, const g
         }
 
         // Compute collide (if blocked, don't do this - no thermal perturbation, purely reflection)
-        if(!blocked->d[y][x]) {
+        if(!isEdge && !blocked->d[y][x]) {
             float c = 1 - r2/2*(ux*ux + uy*uy);
             #pragma unroll
             for(int dy = 0; dy <= 2; dy ++) {
