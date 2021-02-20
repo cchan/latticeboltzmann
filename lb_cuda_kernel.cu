@@ -70,9 +70,9 @@ __device__ uchar3 hsv_to_rgb(float h, float s, float v) {
 // assert(np.all(w == np.flip(w, axis=0)))
 // assert(math.isclose(sum(w), 1, rel_tol=1e-6))
 #define r2 3.0f
-__constant__ const float w[3][3] = {{1.0/36, 1.0/9, 1.0/36},
-                                    {1.0/9,  4.0/9, 1.0/9},
-                                    {1.0/36, 1.0/9, 1.0/36}};
+__constant__ const float w[3][3] = {{1.0f/36, 1.0f/9, 1.0f/36},
+                                    {1.0f/9,  4.0f/9, 1.0f/9},
+                                    {1.0f/36, 1.0f/9, 1.0f/36}};
 
 template<typename T>
 struct cell_t {
@@ -289,7 +289,7 @@ __device__ void fcs(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>* frame, const g
         float s1 = next.d[0][0] + next.d[0][1] + next.d[0][2];
         float s2 = next.d[1][0] + next.d[1][1] + next.d[1][2];
         float s3 = next.d[2][0] + next.d[2][1] + next.d[2][2];
-        float d = s1 + s2 + s3 + 0.0001; // Total density (plus a fudge factor for numerical stability)
+        float d = s1 + s2 + s3 + 0.0001f; // Total density (plus a fudge factor for numerical stability)
                                          // Alternative numerical stability method is to prevent any values from going negative, or otherwise normalize.
         // Adding 10 floating point multiplies here kills performance by ~50%
         float uy = (s3 - s1)/d; // Y component of average velocity
