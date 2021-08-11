@@ -1,9 +1,9 @@
 Lattice Boltzmann Method
 ========================
 
-2D lattice boltzmann fluid sim. Achieves 5.7 GLUPS on an RTX 2070, approx. 92% of maximum achievable memory bandwidth.
+2D lattice boltzmann fluid sim. Achieves 5.7 GLUPS on an RTX 2070, approx. 92% of maximum achievable memory bandwidth. (Another test yields 4k630Hz)
 
-(Another test yields 4k630Hz)
+Achieves 14.3 GLUPS / 1.03 TBps on a single A100 80GB GPU, with `INNER_TIMESTEPS=6` and `BLOCKS_THREADS_TUNE_CONSTANT=12`.
 
 ## Nice things to look at
 
