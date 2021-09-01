@@ -47,9 +47,22 @@ else:
   raise ValueError("No base image provided")
 
 
-INNER_TIMESTEPS = 1 # Number of times the inner loop repeats.
-INNER_BLOCK = N+1 # Number of rows of a 32-wide column to be processed in an inner loop chunk.
-BLOCKS_THREADS_TUNE_CONSTANT = 8 # Adjust the blocks/threads tradeoff. Higher means more threads per block, but fewer blocks.
+if len(sys.argv) > 2:
+  tune = sys.argv[2]
+else:
+  tune = 'RTX_2070'
+
+if tune == 'RTX_2070':
+  INNER_TIMESTEPS = 1 # Number of times the inner loop repeats.
+  INNER_BLOCK = N+1 # Number of rows of a 32-wide column to be processed in an inner loop chunk.
+  BLOCKS_THREADS_TUNE_CONSTANT = 8 # Adjust the blocks/threads tradeoff. Higher means more threads per block, but fewer blocks.
+  NVCC_ARCH = 'sm_75'
+elif tune == 'A100_80GB':
+  INNER_TIMESTEPS = 6
+  INNER_BLOCK = N+1
+  BLOCKS_THREADS_TUNE_CONSTANT = 12
+  NVCC_ARCH = 'sm_80'
+OUTPUT_INTERVAL = 101
 # I think the conclusion from this tuning is:
 #   1) the cache is far too small for this to work in this way (we need RDNA2 Infinity Cache for this)
 #   2) there might actually be a compute bottleneck as well. which means we're at a decently optimal point.
@@ -103,13 +116,15 @@ insides = getEquilibrium(np.array([u_insides], dtype=dtype), np.array([p_insides
 #   cells[blocked] = np.flip(cells[blocked], axis=-1)
 
 with open("lb_cuda_kernel.cu", "r") as cu:
-    mod = SourceModule(f"""
+    prepend = f"""
       #define N {N}
       #define M {M}
       #define OMEGA {OMEGA}f
       #define INNER_TIMESTEPS {INNER_TIMESTEPS}
       #define INNER_BLOCK {INNER_BLOCK}
-    """ + ("#define half_enable\n" if dtype == np.float16 else "") + cu.read(), no_extern_c=1, options=['--use_fast_math', '-O3', '-Xptxas', '-O3,-v,-dlcm=ca,-dscm=wt,-warn-spills,-warn-double-usage,-warn-lmem-usage', '-arch', 'sm_75', '--extra-device-vectorization', '--restrict', '--resource-usage'])
+    """ + ("#define half_enable\n" if dtype == np.float16 else "")
+    print(prepend)
+    mod = SourceModule(prepend + cu.read(), no_extern_c=1, options=['-std=c++17', '--use_fast_math', '-O3', '-Xptxas', '-O3,-v,-dlcm=ca,-dscm=wt,-warn-spills,-warn-double-usage,-warn-lmem-usage', '-arch', NVCC_ARCH, '--extra-device-vectorization', '--restrict', '--resource-usage'])
 fused_collide_stream = mod.get_function("fused_collide_stream")
 fused_collide_stream.prepare("PPPPP")
 fused_collide_stream.set_cache_config(pycuda.driver.func_cache.PREFER_L1)
@@ -138,7 +153,7 @@ a1 = None
 a2 = None
 def appendData(frame, stream):
   stream.synchronize()
-  video.append_data(cv2.resize(frame, dsize=(M//4, N//4), interpolation=cv2.INTER_CUBIC))
+  video.append_data(cv2.resize(frame, dsize=(M//8, N//8), interpolation=cv2.INTER_CUBIC))
 
 prev_time = time.time()
 try:
@@ -159,8 +174,8 @@ try:
 
     # Fused version
     fused_collide_stream.prepared_async_call((math.ceil(M/(32 - 2*INNER_TIMESTEPS)/BLOCKS_THREADS_TUNE_CONSTANT), 1, 1), (32 * BLOCKS_THREADS_TUNE_CONSTANT, 1, 1), stream1,
-      newcells_gpu, frame1_gpu if curr_iter % 100 == 0 else 0, cells_gpu, blocked_gpu, surroundings_gpu)
-    if curr_iter % (200 // INNER_TIMESTEPS) == 0:
+      newcells_gpu, frame1_gpu if curr_iter % OUTPUT_INTERVAL == 0 else 0, cells_gpu, blocked_gpu, surroundings_gpu)
+    if curr_iter % OUTPUT_INTERVAL == 0:
       if a1 is not None:
         a1.join()
       drv.memcpy_dtoh_async(frame1, frame1_gpu, stream=stream1)
