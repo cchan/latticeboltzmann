@@ -62,7 +62,9 @@ elif tune == 'A100_80GB':
   INNER_BLOCK = N+1
   BLOCKS_THREADS_TUNE_CONSTANT = 12
   NVCC_ARCH = 'sm_80'
-OUTPUT_INTERVAL = 101
+else:
+  raise NotImplementedError(f"Unknown tuning `{tune}`")
+OUTPUT_INTERVAL = 201
 # I think the conclusion from this tuning is:
 #   1) the cache is far too small for this to work in this way (we need RDNA2 Infinity Cache for this)
 #   2) there might actually be a compute bottleneck as well. which means we're at a decently optimal point.
@@ -126,8 +128,11 @@ with open("lb_cuda_kernel.cu", "r") as cu:
     print(prepend)
     mod = SourceModule(prepend + cu.read(), no_extern_c=1, options=['-std=c++17', '--use_fast_math', '-O3', '-Xptxas', '-O3,-v,-dlcm=ca,-dscm=wt,-warn-spills,-warn-double-usage,-warn-lmem-usage', '-arch', NVCC_ARCH, '--extra-device-vectorization', '--restrict', '--resource-usage'])
 fused_collide_stream = mod.get_function("fused_collide_stream")
-fused_collide_stream.prepare("PPPPP")
+fused_collide_stream_display = mod.get_function("fused_collide_stream_display")
+fused_collide_stream.prepare("PPPP")
+fused_collide_stream_display.prepare("PPPPP")
 fused_collide_stream.set_cache_config(pycuda.driver.func_cache.PREFER_L1)
+fused_collide_stream_display.set_cache_config(pycuda.driver.func_cache.PREFER_L1)
 
 cells = np.where(np.expand_dims(blocked,-1), np.array(insides,ndmin=3,dtype=dtype), np.array(insides, ndmin=3, dtype=dtype)) # cells should have k as its first dimension for cache efficiency
 # stream(cells)
@@ -173,14 +178,21 @@ try:
     # np.nan_to_num(u, copy=False) # Is this a bad hack? if p == 0 (i.e. blocked) then we want u to be zero.
 
     # Fused version
-    fused_collide_stream.prepared_async_call((math.ceil(M/(32 - 2*INNER_TIMESTEPS)/BLOCKS_THREADS_TUNE_CONSTANT), 1, 1), (32 * BLOCKS_THREADS_TUNE_CONSTANT, 1, 1), stream1,
-      newcells_gpu, frame1_gpu if curr_iter % OUTPUT_INTERVAL == 0 else 0, cells_gpu, blocked_gpu, surroundings_gpu)
     if curr_iter % OUTPUT_INTERVAL == 0:
+      fused_collide_stream_display.prepared_async_call((math.ceil(M/(32 - 2*INNER_TIMESTEPS)/BLOCKS_THREADS_TUNE_CONSTANT), 1, 1), (32 * BLOCKS_THREADS_TUNE_CONSTANT, 1, 1), stream1,
+        newcells_gpu, frame1_gpu, cells_gpu, blocked_gpu, surroundings_gpu)
       if a1 is not None:
         a1.join()
       drv.memcpy_dtoh_async(frame1, frame1_gpu, stream=stream1)
       a1 = Thread(target=appendData, args=(frame1, stream1))
       a1.start()
+    else:
+      fused_collide_stream_display.prepared_async_call((math.ceil(M/(32 - 2*INNER_TIMESTEPS)/BLOCKS_THREADS_TUNE_CONSTANT), 1, 1), (32 * BLOCKS_THREADS_TUNE_CONSTANT, 1, 1), stream1,
+        newcells_gpu, 0, cells_gpu, blocked_gpu, surroundings_gpu)
+      # For reasons I do not understand, the below non-rendering-only kernel running by itself has a substantial (>10%) performance hit
+      #   compared to the above version that includes both rendering code (both cpu & gpu side) and non-rendering code.
+      # fused_collide_stream.prepared_async_call((math.ceil(M/(32 - 2*INNER_TIMESTEPS)/BLOCKS_THREADS_TUNE_CONSTANT), 1, 1), (32 * BLOCKS_THREADS_TUNE_CONSTANT, 1, 1), stream1,
+      #   newcells_gpu, cells_gpu, blocked_gpu, surroundings_gpu)
 
     newcells_gpu, cells_gpu = cells_gpu, newcells_gpu
     frame1, frame2 = frame2, frame1

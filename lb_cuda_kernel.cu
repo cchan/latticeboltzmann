@@ -207,7 +207,7 @@ __device__ __forceinline__ void __stcs_cell(const cell_t<float>* cell, const cel
 }
 
 template<bool shouldDisplay>
-__device__ void fcs(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>* frame, const grid_t<cell_t<FP>>* cells,
+__forceinline__ __device__ void fcs(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>* frame, const grid_t<cell_t<FP>>* cells,
                                      const grid_t<bool>* blocked, const cell_t<FP>* surroundings) {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     bool isHalo = (x%32 < INNER_TIMESTEPS || x%32 > 31 - INNER_TIMESTEPS);
@@ -365,12 +365,18 @@ __device__ void fcs(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>* frame, const g
     }
 }
 extern "C" {
-    __global__ void fused_collide_stream(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>* frame, const grid_t<cell_t<FP>>* cells,
+    // __launch_bounds__(2048)
+    __global__ void fused_collide_stream_display(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>* frame, const grid_t<cell_t<FP>>* cells,
         const grid_t<bool>* blocked, const cell_t<FP>* surroundings) {
         if(frame)
             fcs<true>(newcells, frame, cells, blocked, surroundings);
         else
             fcs<false>(newcells, frame, cells, blocked, surroundings);
+    }
+    // __launch_bounds__(2048)
+    __global__ void fused_collide_stream(grid_t<cell_t<FP>>* newcells, const grid_t<cell_t<FP>>* cells,
+        const grid_t<bool>* blocked, const cell_t<FP>* surroundings) {
+        fcs<false>(newcells, 0, cells, blocked, surroundings);
     }
 }
 
