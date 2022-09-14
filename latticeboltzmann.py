@@ -50,13 +50,18 @@ else:
 if len(sys.argv) > 2:
   tune = sys.argv[2]
 else:
-  tune = 'RTX_2070'
+  tune = 'RTX_3090'
 
 if tune == 'RTX_2070':
   INNER_TIMESTEPS = 1 # Number of times the inner loop repeats.
   INNER_BLOCK = N+1 # Number of rows of a 32-wide column to be processed in an inner loop chunk.
   BLOCKS_THREADS_TUNE_CONSTANT = 8 # Adjust the blocks/threads tradeoff. Higher means more threads per block, but fewer blocks.
   NVCC_ARCH = 'sm_75'
+elif tune == 'RTX_3090':
+  INNER_TIMESTEPS = 1
+  INNER_BLOCK = N+1
+  BLOCKS_THREADS_TUNE_CONSTANT = 10
+  NVCC_ARCH = 'sm_86'
 elif tune == 'A100_80GB':
   INNER_TIMESTEPS = 6
   INNER_BLOCK = N+1
