@@ -217,6 +217,10 @@ __forceinline__ __device__ void fcs(grid_t<cell_t<FP>>* newcells, grid_t<uchar3>
 
     cell_t<float> surr = h2f(*surroundings);
     cell_t<float> prev, curr, next;
+    // TODO: try coarsening by 2x in the x direction. // cell_t<float> prev2, curr2, next2;
+    // TODO: try bringing the outer z loop closer in - equivalent to using a larger filter I guess
+    // TODO: newcells (or cells?) should temporarily be in shared memory before writing (reading). cuda::memcpy_async ("optionally bypassing l1 cache") maybe too.
+        // on ampere, maximum carveout of 164 kB can fit 145 rows. can double buffer this with the async copies: https://nvidia.github.io/libcudacxx/extended_api/synchronization_primitives/pipeline.html
 
     // This fails because there is far too little shared memory and also I think we're already using L1/L2
     // (at the same INNER_BLOCK and INNER_TIMESTEPS it's actually slower to use shared than just directly accessing newcells[][]).
