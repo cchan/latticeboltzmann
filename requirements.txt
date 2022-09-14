@@ -1,0 +1,5 @@
+pycuda
+imageio
+matplotlib
+opencv-python
+imageio-ffmpeg
