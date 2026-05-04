@@ -7,7 +7,9 @@ Lattice Boltzmann Method
 
 - Achieves 14.3 GLUPS / 1.03 TBps on a single A100 80GB GPU, with `INNER_TIMESTEPS=6` and `BLOCKS_THREADS_TUNE_CONSTANT=12`.
 
-- Achieves 82.92 GLUPS on a single GB300, with a much larger launch grid using grid y, a new AoSoA layout (with inner array dim = warp size = 32), and `INNER_TIMESTEPS=1` `INNER_BLOCK=384` and `BLOCKS_THREADS_TUNE_CONSTANT=4`
+- Achieves 82.92 GLUPS on a single GB300, with a much larger launch grid using grid y, a new AoSoA layout (with inner array dim = warp size = 32), and `INNER_TIMESTEPS=1` `INNER_BLOCK=384` and `BLOCKS_THREADS_TUNE_CONSTANT=4`.
+
+- Achieves 324.21 GLUPS on 4 GB300s with 4x more pixels, a 4-deep shared halo, and an LL-style flag protocol over symmetric memory.
 
 ## Nice things to look at
 
